@@ -73,26 +73,29 @@ jobs:
 
       - name: 🖼️ Set Anime Wallpaper with Display Watermark
         run: |
-          $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
+          # 404 সমস্যা সমাধানের জন্য ডাইরেক্ট ইমেজ লিংক (Imgur Mirror)
+          $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
           $wpPath = "C:\Users\Public\wallpaper.jpg"
           $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
           
           try {
-              # ইমেজ ডাউনলোড
-              Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
+              # ইমেজ ডাউনলোড (User-Agent যোগ করা হয়েছে যাতে ব্লক না করে)
+              $wc = New-Object System.Net.WebClient
+              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+              $wc.DownloadFile($wpUrl, $wpPath)
               
-              # ইমেজ প্রসেসিং এর জন্য .NET ড্রয়িং লাইব্রেরি লোড
+              # ইমেজ প্রসেসিং এর জন্য .NET ড্রয়িং লাইব্রেরি লোড
               Add-Type -AssemblyName System.Drawing
               $img = [System.Drawing.Image]::FromFile($wpPath)
               $graphics = [System.Drawing.Graphics]::FromImage($img)
               
-              # ফন্ট এবং রঙ নির্ধারণ (সাদা রঙের বোল্ড টেক্সট)
-              $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
+              # ফন্ট এবং রঙ নির্ধারণ
+              $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
               $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
               
-              # স্ক্রিনের ডানদিকের নিচে নাম লেখা (Watermark Position)
-              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 50, ($img.Height - 150))
-              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 50, ($img.Height - 80))
+              # ওয়াটারমার্ক টেক্সট আঁকা (নিচের বাম কোণায়)
+              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
               
               # ইমেজ সেভ এবং রিসোর্স ক্লিনআপ
               $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
@@ -109,7 +112,16 @@ jobs:
           "@
               Add-Type -TypeDefinition $code
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-          } catch { Write-Host "Wallpaper branding failed, skipping..." }
+          } catch { 
+              Write-Host "Primary Wallpaper failed, creating fallback branded background..." 
+              # ইমেজ ডাউনলোড ফেইল হলে অটোমেটিক একটি ব্ল্যাক ব্র্যান্ডেড ব্যাকগ্রাউন্ড তৈরি হবে
+              $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.Clear([System.Drawing.Color]::Black)
+              $g.DrawString("OWNER: YUTA 複", [System.Drawing.Font]::new("Arial", 60), [System.Drawing.Brushes]::White, 500, 450)
+              $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+          }
 
       - name: 📱 Telegram Smart Notification
         run: |
