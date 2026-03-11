@@ -73,53 +73,46 @@ jobs:
 
       - name: 🖼️ Set Anime Wallpaper with Display Watermark
         run: |
-          # 404 সমস্যা সমাধানের জন্য ডাইরেক্ট ইমেজ লিংক (Imgur Mirror)
+          # 404 এড়াতে মিরর লিংক এবং ডাইরেক্ট ইমেজিং
           $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
           $wpPath = "C:\Users\Public\wallpaper.jpg"
           $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
-          
-          try {
-              # ইমেজ ডাউনলোড (User-Agent যোগ করা হয়েছে যাতে ব্লক না করে)
-              $wc = New-Object System.Net.WebClient
-              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
-              $wc.DownloadFile($wpUrl, $wpPath)
-              
-              # ইমেজ প্রসেসিং এর জন্য .NET ড্রয়িং লাইব্রেরি লোড
-              Add-Type -AssemblyName System.Drawing
-              $img = [System.Drawing.Image]::FromFile($wpPath)
-              $graphics = [System.Drawing.Graphics]::FromImage($img)
-              
-              # ফন্ট এবং রঙ নির্ধারণ
-              $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
-              $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-              
-              # ওয়াটারমার্ক টেক্সট আঁকা (নিচের বাম কোণায়)
-              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
-              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
-              
-              # ইমেজ সেভ এবং রিসোর্স ক্লিনআপ
-              $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-              $graphics.Dispose()
-              $img.Dispose()
 
-              # ওয়ালপেপার সেট করার C# কোড
-              $code = @"
+          # টাইপটি আগেই ডিক্লেয়ার করা হলো যাতে Catch ব্লকে এরর না আসে
+          $code = @"
           using System.Runtime.InteropServices;
           public class Wallpaper {
               [DllImport("user32.dll", CharSet = CharSet.Auto)]
               public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
           }
           "@
-              Add-Type -TypeDefinition $code
+          Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+          
+          try {
+              $wc = New-Object System.Net.WebClient
+              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+              $wc.DownloadFile($wpUrl, $wpPath)
+              
+              Add-Type -AssemblyName System.Drawing
+              $img = [System.Drawing.Image]::FromFile($wpPath)
+              $graphics = [System.Drawing.Graphics]::FromImage($img)
+              $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
+              $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+              
+              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
+              
+              $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              $graphics.Dispose(); $img.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-          } catch { 
-              Write-Host "Primary Wallpaper failed, creating fallback branded background..." 
-              # ইমেজ ডাউনলোড ফেইল হলে অটোমেটিক একটি ব্ল্যাক ব্র্যান্ডেড ব্যাকগ্রাউন্ড তৈরি হবে
+          } catch {
+              Write-Host "Primary Wallpaper failed, creating fallback..."
+              Add-Type -AssemblyName System.Drawing
               $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
               $g = [System.Drawing.Graphics]::FromImage($bmp)
               $g.Clear([System.Drawing.Color]::Black)
               $g.DrawString("OWNER: YUTA 複", [System.Drawing.Font]::new("Arial", 60), [System.Drawing.Brushes]::White, 500, 450)
-              $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              $g.Dispose(); $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
           }
 
