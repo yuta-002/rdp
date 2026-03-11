@@ -28,10 +28,20 @@ jobs:
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
           
-          # Performance & Virtual RAM Boost (16GB)
+          # Performance Boost
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          
+          # --- Virtual RAM (PageFile) Fix Start ---
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
-          New-CimInstance -ClassName Win32_PageFileSetting -Property @{Name="C:\pagefile.sys"; InitialSize=8192; MaximumSize=16384}
+          $pagefile = Get-CimInstance Win32_PageFileSetting
+          if ($pagefile) { $pagefile | Remove-CimInstance }
+          # [uint32] টাইপ ব্যবহার করে এরর ফিক্স করা হয়েছে
+          New-CimInstance -ClassName Win32_PageFileSetting -Property @{
+              Name = "C:\pagefile.sys";
+              InitialSize = [uint32]8192;
+              MaximumSize = [uint32]16384
+          }
+          # --- Virtual RAM Fix End ---
           
           netsh advfirewall firewall delete rule name="Test-Env-Access"
           netsh advfirewall firewall add rule name="Test-Env-Access" `
@@ -60,7 +70,6 @@ jobs:
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TestAdmin"
           
-          # Environment variables for later use
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
@@ -188,7 +197,6 @@ jobs:
           Write-Host "Auth Token: $(echo $env:TEST_ENV_CREDS)"
           Write-Host "==================================`n"
           
-          # ৫ ঘণ্টা ৫০ মিনিটের (৩৫০ মিনিট) সেফ এক্সিট টাইমার
           $endTime = (Get-Date).AddMinutes(350)
           $cycle = 1
           
@@ -196,7 +204,7 @@ jobs:
               $remTime = [math]::Round(($endTime - (Get-Date)).TotalMinutes)
               Write-Host "[$(Get-Date)] Chunk #$cycle | Remaining: $remTime Mins | @JOY_100K"
               
-              # Anti-Idle Activity (মাউস মুভমেন্ট)
+              # Anti-Idle Activity
               $pos = [System.Windows.Forms.Cursor]::Position
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(($pos.X + 1), ($pos.Y + 1))
               
@@ -206,7 +214,7 @@ jobs:
               $cycle++
           }
           
-          # সেশন শেষ হওয়ার আগে রিস্টার্ট ট্রিগার
+          # Auto-Restart Dispatch
           $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:${{ secrets.GH_PAT }}"))
           curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/dispatches -d "{\"event_type\": \"restart_rdp\"}"
           
