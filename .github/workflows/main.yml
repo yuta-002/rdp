@@ -16,13 +16,16 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+          
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
           $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
+          
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -36,14 +39,20 @@ jobs:
 
       - name: 👤 Create Admin & Branding Info
         run: |
-          $password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 12 | ForEach-Object {[char]$_})
+          # পাসওয়ার্ড জেনারেশন এবং ইউজার ক্রিয়েশন ফিক্স
+          $chars = (65..90) + (97..122) + (48..57) + (33, 35, 36, 37)
+          $password = -join ($chars | Get-Random -Count 14 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
+          
+          # New-LocalUser কমান্ডে পাসওয়ার্ড প্যারামিটার যোগ করা হয়েছে
+          New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "YUTA Admin" -Description "Managed by @JOY_100K" -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
+          
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
-          echo "TOTAL_RAM=$([math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB))" >> $env:GITHUB_ENV
+          $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
+          echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
       - name: 🖼️ Set Intense 4K Anime Wallpaper & Desktop Branding
         run: |
@@ -64,7 +73,6 @@ jobs:
 
           $brandingText = "=========================================`nOWNER: YUTA`nTELEGRAM: @JOY_100K`n=========================================`nWelcome to Ultra Pro Build Environment`n========================================="
           $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO_YUTA.txt"
-          $brandingText | Out-File "C:\Users\Public\Desktop\WELCOME.txt"
 
       - name: 🔗 Tailscale Connection
         run: |
@@ -74,7 +82,7 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 📱 Telegram Smart Notification (HTML Mode)
+      - name: 📱 Telegram Smart Notification
         run: |
           $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
@@ -104,7 +112,7 @@ jobs:
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... Owner: YUTA | Time Left: $([math]::Round(($endTime - (Get-Date)).TotalMinutes)) min"
+              Write-Host "Running... Owner: YUTA | Time: $(Get-Date -Format 'HH:mm:ss')"
               [System.GC]::Collect()
               Start-Sleep -Seconds 300
           }
