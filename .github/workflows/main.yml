@@ -13,23 +13,16 @@ jobs:
     steps:
       - name: 🚀 Initialize High-Performance & Optimization
         run: |
-          # RDP ও সিকিউরিটি কনফিগারেশন
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
-                           
-          # পাওয়ার ও স্লিপ অপ্টিমাইজেশন
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
           $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
-          
-          # Ultimate Performance Mode
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-          
-          # Virtual RAM Fix
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -38,57 +31,40 @@ jobs:
               InitialSize = [uint32]8192;
               MaximumSize = [uint32]16384
           }
-          
           netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
       - name: 👤 Create Admin & Branding Info
         run: |
-          Add-Type -AssemblyName System.Security
           $password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 12 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
           New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
-          
-          $os = (Get-WmiObject Win32_OperatingSystem).Caption
-          $cpu = (Get-WmiObject Win32_Processor).Name
-          $ram = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
-          
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
-          echo "OS_INFO=$os" >> $env:GITHUB_ENV
-          echo "CPU_INFO=$cpu" >> $env:GITHUB_ENV
-          echo "TOTAL_RAM=$ram" >> $env:GITHUB_ENV
+          echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
+          echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
+          echo "TOTAL_RAM=$([math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB))" >> $env:GITHUB_ENV
 
       - name: 🖼️ Set Intense 4K Anime Wallpaper & Desktop Branding
         run: |
-          # Dark/Intense Anime Wallpaper (Rimuru/Dark Vibe)
           $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
           $wpPath = "C:\Windows\branding-wp.jpg"
           try {
-            Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
-            $code = @"
-            using System.Runtime.InteropServices;
-            public class Wallpaper {
+              Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
+              $code = @"
+          using System.Runtime.InteropServices;
+          public class Wallpaper {
               [DllImport("user32.dll", CharSet = CharSet.Auto)]
               public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-            }
-"@
-            Add-Type -TypeDefinition $code
-            [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
+          }
+          "@
+              Add-Type -TypeDefinition $code
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
           } catch { Write-Host "Wallpaper setup skipped" }
 
-          # Desktop Text Branding
-          $brandingText = @"
-          =========================================
-          OWNER: YUTA
-          TELEGRAM: @JOY_100K
-          =========================================
-          Welcome to Ultra Pro Build Environment
-          =========================================
-"@
+          $brandingText = "=========================================`nOWNER: YUTA`nTELEGRAM: @JOY_100K`n=========================================`nWelcome to Ultra Pro Build Environment`n========================================="
           $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO.txt"
-          $brandingText | Out-File "C:\Users\TestAdmin\Desktop\WELCOME.txt" -ErrorAction SilentlyContinue
+          $brandingText | Out-File "C:\Users\Public\Desktop\WELCOME_YUTA.txt"
 
       - name: 🔗 Tailscale Connection
         run: |
@@ -100,24 +76,7 @@ jobs:
 
       - name: 📱 Telegram Smart Notification
         run: |
-          $text = @"
-          💎 *ULTRA PRO RDP V2 BY YUTA*
-          ━━━━━━━━━━━━━━━━━━━━━━
-          👤 *OWNER:* YUTA (@JOY_100K)
-          💻 *OS:* ${{ env.OS_INFO }}
-          🧠 *CPU:* ${{ env.CPU_INFO }}
-          🔋 *RAM:* ${{ env.TOTAL_RAM }}GB + 16GB V-RAM
-          
-          🌐 *NETWORK ACCESS:*
-          IP: `${{ env.TAILSCALE_IP }}`
-          User: `TestAdmin`
-          Pass: `${{ env.RDP_PASS }}`
-          
-          🎨 *THEME:* 4K Dark Anime Style
-          ⏱️ *SESSION:* 6 Hours Auto-Restart
-          ━━━━━━━━━━━━━━━━━━━━━━
-          🛑 [Terminate](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          "@
+          $text = "💎 *ULTRA PRO RDP V2 BY YUTA*`n━━━━━━━━━━━━━━━━━━━━━━`n👤 *OWNER:* YUTA (@JOY_100K)`n💻 *OS:* ${{ env.OS_INFO }}`n🧠 *CPU:* ${{ env.CPU_INFO }}`n🔋 *RAM:* ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n🌐 *NETWORK ACCESS:*`nIP: \`${{ env.TAILSCALE_IP }}\``nUser: \`TestAdmin\``nPass: \`${{ env.RDP_PASS }}\``n`n🎨 *THEME:* 4K Dark Anime Style`n⏱️ *SESSION:* 6 Hours Auto-Restart`n━━━━━━━━━━━━━━━━━━━━━━"
           $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $body -ContentType "application/json"
 
@@ -125,23 +84,13 @@ jobs:
         run: |
           Add-Type -AssemblyName System.Windows.Forms
           $endTime = (Get-Date).AddMinutes(350)
-          
           while ((Get-Date) -lt $endTime) {
-            $rem = [math]::Round(($endTime - (Get-Date)).TotalMinutes)
-            Write-Host "Running... Time Left: $rem min | Owner: YUTA"
-            
-            [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-            [System.GC]::Collect()
-            
-            Start-Sleep -Seconds 300
+              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
+              Write-Host "Running... Owner: YUTA"
+              Start-Sleep -Seconds 300
           }
-          
           $token = "${{ secrets.GH_PAT }}"
           if ($token) {
-            $user = "${{ github.actor }}"
-            $pair = "$($user):$($token)"
-            $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
-            
-            curl -X POST -H "Authorization: Basic $encoded" -H "Accept: application/vnd.github.v3+json" `
-            "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
+              $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:$token"))
+              curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
           }
