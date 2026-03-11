@@ -1,4 +1,4 @@
-name: Windows Master CI - Ultra Pro V2 (Ultimate Branding Fixed)
+name: Windows Master CI - Ultra Pro V2 (Tailscale Edition)
 
 on:
   workflow_dispatch:
@@ -33,11 +33,11 @@ jobs:
           $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
           echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
-      - name: 🛡️ Set Master Watermark & Japanese Style
+      - name: 🛡️ Set Master Watermark & Master UI Tweaks
         run: |
           $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
           Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP MASTER: YUTA 複 (ユタ)" -Force
-          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "Welcome, Master YUTA 複.`nTelegram: @JOY_100K`n`nSystem is fully optimized for your command!" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "Welcome, Master YUTA 複.`nTelegram: @JOY_100K`n`nTailscale Network Active!" -Force
           
           $oemInfo = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
           if (!(Test-Path $oemInfo)) { New-Item -Path $oemInfo -Force }
@@ -49,59 +49,48 @@ jobs:
           Set-ItemProperty -Path $regApps -Name "AppsUseLightTheme" -Value 0 -Force
           Set-ItemProperty -Path $regApps -Name "SystemUsesLightTheme" -Value 0 -Force
 
-      - name: 🔗 Setup ngrok Tunnel (Final Connection Fix)
+      - name: 🌐 Setup Tailscale (VPN Tunnel)
         run: |
-          choco install ngrok -y
-          $env:Path += ";C:\ProgramData\chocolatey\bin"
-          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          Start-Process -FilePath "ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+          # Tailscale MSI ইন্সটল করা হচ্ছে
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
+          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet /norestart" -Wait
           
-          Write-Host "Waiting for ngrok to initialize..." -ForegroundColor Cyan
-          $retryCount = 0
-          while ($retryCount -lt 20) {
-              try {
-                  $response = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
-                  if ($response.tunnels.Count -gt 0) {
-                      $ngrokRawUrl = $response.tunnels[0].public_url
-                      $cleanUrl = $ngrokRawUrl -replace "tcp://", ""
-                      echo "NGROK_URL=$cleanUrl" >> $env:GITHUB_ENV
-                      Write-Host "ngrok is ready! URL: $cleanUrl" -ForegroundColor Green
-                      break
-                  }
-              } catch {
-                  Start-Sleep -Seconds 5
-                  $retryCount++
-                  Write-Host "Retrying ($retryCount/20)..."
-              }
-          }
+          # Tailscale পাথ এনাবল করা
+          $env:Path += ";C:\Program Files\Tailscale"
+          
+          # Tailscale লগইন এবং আপ করা (Secrets থেকে Auth Key ব্যবহার করে)
+          tailscale up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "YUTA-MASTER-RDP"
+          
+          # আইপি অ্যাড্রেস সংগ্রহ করা
+          $tsIp = (tailscale ip -4).Trim()
+          echo "TS_IP=$tsIp" >> $env:GITHUB_ENV
+          Write-Host "Tailscale IP: $tsIp" -ForegroundColor Cyan
 
       - name: 🔊 Setup Master Voice & Welcome (Startup)
         run: |
           $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
           $voiceScript = @"
           Dim speaks, speech
-          speaks = "Welcome back, Master YUTA. System is online and high performance mode is active."
+          speaks = "Welcome back, Master YUTA. System is online. Tailscale VPN is active."
           Set speech = CreateObject("sapi.spvoice")
           speech.Speak speaks
           "@
           $voiceScript | Out-File "$startupFolder\WelcomeVoice.vbs" -Encoding utf8
 
           $msgScript = @"
-          MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Owner: @JOY_100K" & vbCrLf & vbCrLf & "High-speed master session is ready!", 64, "YUTA Master System"
+          MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Network: Tailscale Private" & vbCrLf & "IP: $($env:TS_IP)", 64, "YUTA Master System"
           "@
           $msgScript | Out-File "$startupFolder\WelcomeMsg.vbs" -Encoding utf8
 
-      - name: 📝 Generate Master Desktop Info & Banner
+      - name: 📝 Generate Master Desktop Info
         run: |
           $details = @"
           =========================================
           👑 MASTER: YUTA 複 (ユタ)
           📱 TELEGRAM: @JOY_100K
           =========================================
-          🚀 ULTRA PRO RDP V2 - MASTER LOGIN
-          =========================================
-          🌐 NETWORK INFO:
-          Address: $($env:NGROK_URL)
+          🌐 NETWORK: TAILSCALE VPN
+          Address: $($env:TS_IP)
           User: TestAdmin
           Pass: $($env:RDP_PASS)
           =========================================
@@ -112,8 +101,8 @@ jobs:
           if (!(Test-Path $profilePath)) { New-Item -ItemType Directory -Path $profilePath -Force }
           $banner = @"
           Write-Host "==========================================================" -ForegroundColor Cyan
-          Write-Host "   🚀 WELCOME MASTER YUTA 複 (ユタ) - ULTRA PRO V2" -ForegroundColor Yellow
-          Write-Host "   📱 TELEGRAM: @JOY_100K | MODE: MASTER SUPREME" -ForegroundColor Green
+          Write-Host "   🚀 WELCOME MASTER YUTA 複 (ユタ) - TAILSCALE V2" -ForegroundColor Yellow
+          Write-Host "   📱 STATUS: VPN CONNECTED | MODE: SUPREME" -ForegroundColor Green
           Write-Host "==========================================================" -ForegroundColor Cyan
           "@
           $banner | Out-File "$profilePath\Microsoft.PowerShell_profile.ps1" -Encoding utf8
@@ -146,21 +135,18 @@ jobs:
               $graphics.Dispose(); $img.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
           } catch {
-              Write-Host "Wallpaper failed, using black background."
+              Write-Host "Wallpaper Error"
           }
 
-      - name: 📱 Telegram Master Notification
+      - name: 📱 Telegram Notification (Tailscale)
         run: |
-          $htmlBody = "<b>💎 ULTRA MASTER RDP V2 BY YUTA 複</b>`n" +
+          $htmlBody = "<b>🔒 TAILSCALE MASTER RDP BY YUTA 複</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
                       "👤 <b>MASTER:</b> YUTA (@JOY_100K)`n" +
-                      "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
-                      "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
-                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
-                      "🌐 <b>MASTER ACCESS:</b>`n" +
-                      "Address: <code>${{ env.NGROK_URL }}</code>`n" +
-                      "User: <code>TestAdmin</code>`n" +
-                      "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🌐 <b>VPN IP:</b> <code>${{ env.TS_IP }}</code>`n" +
+                      "👤 <b>USER:</b> <code>TestAdmin</code>`n" +
+                      "🔑 <b>PASS:</b> <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB`n" +
                       "⏱️ <b>SESSION:</b> 6 Hours Auto-Restart`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━"
           $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
@@ -172,7 +158,7 @@ jobs:
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... MASTER: YUTA 複 | @JOY_100K"
+              Write-Host "Running... MASTER: YUTA 複 | Tailscale Active"
               [System.GC]::Collect()
               Start-Sleep -Seconds 300
           }
