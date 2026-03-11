@@ -1,14 +1,12 @@
-name: Windows CI Build Environment - Master Yuta Edition
+name: Windows CI Build Environment - Ultra Pro Edition V2
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    types: [restart_rdp]
 
 jobs:
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 3600
+    timeout-minutes: 360 
 
     steps:
       - name: 🚀 Initialize High-Performance & Optimization
@@ -20,42 +18,42 @@ jobs:
           netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: 👤 Create Single Admin & Branding
+      - name: 👤 Create Admin & Branding Info
         run: |
-          # [FINAL FIX] Guaranteed Complexity Policy Compliance
-          $Upper = (65..90) | Get-Random -Count 3 | ForEach-Object {[char]$_}
-          $Lower = (97..122) | Get-Random -Count 3 | ForEach-Object {[char]$_}
-          $Nums  = (48..57) | Get-Random -Count 3 | ForEach-Object {[char]$_}
-          $Special = 33, 35, 36 | Get-Random -Count 1 | ForEach-Object {[char]$_}
-          $RandomPart = -join ($Upper + $Lower + $Nums + $Special | Sort-Object {Get-Random})
-          
-          # Final 14 Digit Password: Yuta + 10 Random (Complexity Guaranteed)
-          $password = "Yuta" + $RandomPart
+          $chars = (65..90) + (97..122) + (48..57) + (33, 35, 36, 37)
+          $password = -join ($chars | Get-Random -Count 14 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
-          # Create MasterYuta Admin
-          New-LocalUser -Name "MasterYuta" -Password $securePass -FullName "YUTA Admin" -Description "Managed by @JOY_100K" -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "MasterYuta"
-          
-          # OEM Branding
-          $Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
-          if (!(Test-Path $Path)) { New-Item -Path $Path -Force }
-          Set-ItemProperty -Path $Path -Name "Manufacturer" -Value "YUTA 複 CI/CD Labs" -Force
-          Set-ItemProperty -Path $Path -Name "SupportURL" -Value "https://t.me/JOY_100K" -Force
-          Set-ItemProperty -Path $Path -Name "Model" -Value "Ultra Pro Jarvis Mode" -Force
-
-          echo "RDP_USER=MasterYuta" >> $env:GITHUB_ENV
+          New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "YUTA Admin" -Description "Managed by @JOY_100K" -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
           $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
           echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
+      - name: 🔊 Setup Voice Welcome (Jarvis Style)
+        run: |
+          $voiceScript = @"
+          Add-Type -AssemblyName System.Speech
+          `$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          `$speak.Rate = 1
+          `$speak.Speak('Welcome back, Master YUTA! Your system is ready. I am Jarvis, and I will be assisting you in this session.')
+          "@
+          $voiceScript | Out-File "C:\Users\Public\welcome.ps1" -Encoding utf8
+          
+          # লগইন করার সাথে সাথে রান হওয়ার জন্য স্টার্টআপ ফোল্ডারে শর্টকাট
+          $WshShell = New-Object -ComObject WScript.Shell
+          $Shortcut = $WshShell.CreateShortcut("C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Welcome.lnk")
+          $Shortcut.TargetPath = "powershell.exe"
+          $Shortcut.Arguments = "-ExecutionPolicy Bypass -File C:\Users\Public\welcome.ps1"
+          $Shortcut.WindowStyle = 7
+          $Shortcut.Save()
+
       - name: 🛡️ Set Owner Watermark (Legal Notice)
         run: |
           $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
           Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複" -Force
-          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This RDP is managed by YUTA 複.`nTelegram: @JOY_100K" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This RDP is managed by YUTA 複.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
 
       - name: 🔗 Tailscale Connection
         run: |
@@ -65,41 +63,36 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 🎙️ Jarvis Voice Greeting Setup
-        run: |
-          $VoiceScript = @"
-          Add-Type -AssemblyName System.Speech
-          `$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer
-          `$speak.Speak('Welcome master Yuta, your system is ready and secure.')
-          "@
-          $VoiceScript | Out-File "C:\Users\Public\JarvisVoice.ps1" -Encoding utf8
-          $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-          Set-ItemProperty -Path $RegPath -Name "JarvisVoice" -Value "powershell.exe -WindowStyle Hidden -File C:\Users\Public\JarvisVoice.ps1" -Force
-
-      - name: 📝 Generate Login Details File
+      - name: 📝 Generate User Details with Watermark
         run: |
           $details = @"
           =========================================
-          👑 OWNER: YUTA 複 | @JOY_100K
+          👑 OWNER: YUTA 複
+          📱 TELEGRAM: @JOY_100K
+          =========================================
+          🚀 ULTRA PRO RDP V2 - LOGIN DETAILS
           =========================================
           🌐 NETWORK INFO:
           IP: $($env:TAILSCALE_IP)
-          User: MasterYuta
+          User: TestAdmin
           Pass: $($env:RDP_PASS)
           
           💻 SYSTEM SPECS:
           OS: $($env:OS_INFO)
           CPU: $($env:CPU_INFO)
           RAM: $($env:TOTAL_RAM)GB
+          
+          ⏱️ SESSION: 6 Hours
           =========================================
           "@
-          $details | Out-File "C:\Users\Public\Desktop\MASTER_YUTA_INFO.txt" -Encoding utf8
+          $details | Out-File "C:\Users\Public\Desktop\OWNER_YUTA_INFO.txt" -Encoding utf8
 
-      - name: 🖼️ Set Branded Wallpaper
+      - name: 🖼️ Set Anime Wallpaper with Display Watermark
         run: |
           $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
           $wpPath = "C:\Users\Public\wallpaper.jpg"
           $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
+
           $code = @"
           using System.Runtime.InteropServices;
           public class Wallpaper {
@@ -108,50 +101,74 @@ jobs:
           }
           "@
           Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+          
           try {
-              (New-Object System.Net.WebClient).DownloadFile($wpUrl, $wpPath)
+              $wc = New-Object System.Net.WebClient
+              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+              $wc.DownloadFile($wpUrl, $wpPath)
+              
               Add-Type -AssemblyName System.Drawing
               $img = [System.Drawing.Image]::FromFile($wpPath)
               $graphics = [System.Drawing.Graphics]::FromImage($img)
               $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
               $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-              $graphics.DrawString("MASTER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+              
+              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
               $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
+              
               $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
               $graphics.Dispose(); $img.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-          } catch { Write-Host "Wallpaper skip" }
+          } catch {
+              Write-Host "Primary Wallpaper failed, creating fallback..."
+              Add-Type -AssemblyName System.Drawing
+              $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.Clear([System.Drawing.Color]::Black)
+              $g.DrawString("OWNER: YUTA 複", [System.Drawing.Font]::new("Arial", 60), [System.Drawing.Brushes]::White, 500, 450)
+              $g.Dispose(); $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+          }
 
-      - name: 📱 Telegram & GitHub Log Output
+      - name: 📱 Telegram Smart Notification (Jarvis Mode)
         run: |
-          Write-Host "========================================="
-          Write-Host "🚀 RDP LOGS FOR MASTER YUTA"
-          Write-Host "IP: ${{ env.TAILSCALE_IP }}"
-          Write-Host "User: MasterYuta"
-          Write-Host "Pass: ${{ env.RDP_PASS }}"
-          Write-Host "========================================="
-          
-          $htmlBody = "<b>💎 MASTER YUTA RDP V3 ONLINE</b>`n" +
+          $htmlBody = "<b>🤖 Welcome back, Master YUTA! Your system is ready.</b>`n" +
+                      "<i>I am Jarvis, and I've successfully deployed your Ultra Pro RDP environment.</i>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
-                      "🌐 <b>IP:</b> <code>${{ env.TAILSCALE_IP }}</code>`n" +
-                      "👤 <b>User:</b> <code>MasterYuta</code>`n" +
-                      "🔑 <b>Pass:</b> <code>${{ env.RDP_PASS }}</code>`n" +
-                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB`n" +
+                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
+                      "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
+                      "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
+                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
+                      "🌐 <b>NETWORK ACCESS:</b>`n" +
+                      "IP: <code>${{ env.TAILSCALE_IP }}</code>`n" +
+                      "User: <code>TestAdmin</code>`n" +
+                      "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🎨 <b>THEME:</b> 4K Branded Anime Style`n" +
+                      "⏱️ <b>SESSION STATUS:</b> Online & Secured`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━"
           $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $payload -ContentType "application/json"
 
-      - name: 🔄 Smart Keep-Alive
+      - name: 🔄 Smart Keep-Alive & Expiring Alert
         run: |
           Add-Type -AssemblyName System.Windows.Forms
-          $endTime = (Get-Date).AddMinutes(350)
+          $startTime = Get-Date
+          $totalMinutes = 350
+          $endTime = $startTime.AddMinutes($totalMinutes)
+          $alertTime = $endTime.AddMinutes(-30)
+          $alertSent = $false
+
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Jarvis Active... IP: ${{ env.TAILSCALE_IP }} | Master: Yuta"
+              
+              if ((Get-Date) -ge $alertTime -and $alertSent -eq $false) {
+                  $warningMsg = "<b>⚠️ Master YUTA, Attention Required!</b>`n━━━━━━━━━━━━━━━━━━━━━━`nYour RDP session will expire in <b>30 minutes</b>. Please save your work immediately.`n━━━━━━━━━━━━━━━━━━━━━━"
+                  $alertPayload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $warningMsg; parse_mode = "HTML" } | ConvertTo-Json
+                  Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $alertPayload -ContentType "application/json"
+                  $alertSent = $true
+              }
+
+              Write-Host "Running... OWNER: YUTA 複 | @JOY_100K | Time Left: $([math]::Round(($endTime - (Get-Date)).TotalMinutes)) min"
+              [System.GC]::Collect()
               Start-Sleep -Seconds 300
-          }
-          $token = "${{ secrets.GH_PAT }}"
-          if ($token) {
-              $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:$token"))
-              curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
           }
