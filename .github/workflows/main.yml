@@ -1,4 +1,4 @@
-name: Windows CI Build Environment - Rimuru Edition
+name: Windows CI Build Environment - Ultra Pro Edition
 
 on:
   workflow_dispatch:
@@ -11,14 +11,14 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Initialize Windows Test Environment
+      - name: 🚀 Initialize High-Performance Environment
         run: |
           # RDP ও সিকিউরিটি কনফিগারেশন
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
                            
-          # পাওয়ার ও লক স্ক্রিন অপ্টিমাইজেশন
+          # পাওয়ার ও স্লিপ অপ্টিমাইজেশন
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
@@ -26,10 +26,10 @@ jobs:
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
           
-          # Performance Boost
+          # Performance Mode Enable
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
           
-          # Virtual RAM (PageFile) Fix
+          # Virtual RAM (16GB PageFile) Fix
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -39,40 +39,27 @@ jobs:
               MaximumSize = [uint32]16384
           }
           
-          netsh advfirewall firewall delete rule name="Test-Env-Access"
-          netsh advfirewall firewall add rule name="Test-Env-Access" dir=in action=allow protocol=TCP localport=3389
+          netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: Setup Test Administrator Account
+      - name: 👤 Create Admin & Branding
         run: |
           Add-Type -AssemblyName System.Security
-          $charSet = @{
-              Upper   = [char[]](65..90); Lower = [char[]](97..122); Number = [char[]](48..57); 
-              Special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))
-          }
-          $rawPassword = @()
-          $rawPassword += $charSet.Upper | Get-Random -Count 4
-          $rawPassword += $charSet.Lower | Get-Random -Count 4
-          $rawPassword += $charSet.Number | Get-Random -Count 4
-          $rawPassword += $charSet.Special | Get-Random -Count 4
-          $password = -join ($rawPassword | Sort-Object { Get-Random })
+          $password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 12 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
           New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TestAdmin"
           
+          # Environment variables for later use
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
-          
-          if (-not (Get-LocalUser -Name "TestAdmin")) { exit 1 }
 
-      - name: 🖼️ Set Rimuru Tempest 4K Wallpaper & Branding
+      - name: 🖼️ Set Anime Wallpaper (Rimuru Tempest 4K)
         run: |
           $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
-          $wpPath = "C:\Windows\rimuru-branding.jpg"
-          
+          $wpPath = "C:\Windows\branding-wp.jpg"
           try {
             Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
             $code = @"
@@ -84,60 +71,66 @@ jobs:
 "@
             Add-Type -TypeDefinition $code
             [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
-          } catch {
-            Write-Host "Wallpaper failed, skipping..."
-          }
-          "Owner: JOY_100K | Telegram: @JOY_100K" | Out-File "C:\Users\Public\Desktop\JOY_100K_INFO.txt"
+          } catch { Write-Host "Wallpaper skip" }
+          "Welcome to Ultra Pro Build Environment | Managed by @JOY_100K" | Out-File "C:\Users\Public\Desktop\READ_ME.txt"
 
-      - name: 🎮 Install Chrome & BlueStacks 5
+      - name: 🎮 Install Pro Tools (Chrome & BlueStacks)
         run: |
-          $chromeUrl = "https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF1-A69D9E530F96%7D%26iid%3D%7B8D144A76-7A5E-44B4-8A66-86F6B2C8C67E%7D%26lang%3Den%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dtrue%26ap%3Dx64-stable-statsdef_1%26installdataindex%3Ddefaultbrowser/update2/installers/ChromeSetup.exe"
-          Invoke-WebRequest -Uri $chromeUrl -OutFile "$env:TEMP\ChromeSetup.exe"
-          Start-Process "$env:TEMP\ChromeSetup.exe" -ArgumentList "/silent", "/install" -Wait
+          # Chrome Install
+          Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "chrome.exe"
+          Start-Process "chrome.exe" -ArgumentList "/silent", "/install" -Wait
           
-          $bsUrl = "https://ak-build.bluestacks.com/public/app-player/windows/nxt/5.21.210.1023/52e72404e330f8981df1066063e5229c/BlueStacksMicroInstaller_5.21.210.1023_native.exe"
-          Invoke-WebRequest -Uri $bsUrl -OutFile "$env:TEMP\BSInstaller.exe"
-          Start-Process "$env:TEMP\BSInstaller.exe" -ArgumentList "--unattended", "--notab", "--forced" -Wait
+          # BlueStacks 5 (Standalone)
+          Invoke-WebRequest -Uri "https://ak-build.bluestacks.com/public/app-player/windows/nxt/5.21.210.1023/52e72404e330f8981df1066063e5229c/BlueStacksMicroInstaller_5.21.210.1023_native.exe" -OutFile "BSInstaller.exe"
+          Start-Process "BSInstaller.exe" -ArgumentList "--unattended", "--notab", "--forced" -Wait
 
-      - name: 🔗 Tailscale Network Setup
+      - name: 🔗 Tailscale Setup
         run: |
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=rimuru-rdp-${{ github.run_id }}
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }}
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 📱 Notify via Telegram
+      - name: 📱 Telegram Notification (A to Z Details)
         run: |
           $text = @"
-          💙 *RIMURU TEMPEST RDP ONLINE*
+          🚀 *ULTRA PRO RDP ONLINE*
           ━━━━━━━━━━━━━━━━━━━━━━
           👤 *OWNER:* JOY_100K
-          📱 *TELEGRAM:* @JOY_100K
+          💻 *OS:* ${{ env.OS_INFO }}
+          🧠 *CPU:* ${{ env.CPU_INFO }}
+          🔋 *RAM:* 7GB + 16GB V-RAM
           
-          🖥️ *SPECS:* ${{ env.CPU_INFO }} | 7GB RAM
-          🌐 *IP:* `${{ env.TAILSCALE_IP }}`
-          🔑 *USER:* `TestAdmin`
-          🔑 *PASS:* `${{ env.RDP_PASS }}`
+          🌐 *NETWORK INFO:*
+          IP: `${{ env.TAILSCALE_IP }}`
+          User: `TestAdmin`
+          Pass: `${{ env.RDP_PASS }}`
+          
+          🛠️ *INSTALLED:*
+          ✅ Chrome Browser
+          ✅ BlueStacks 5 (Pro Edition)
+          ✅ Rimuru Tempest 4K Theme
+          
+          ⏱️ *SESSION:* 6 Hours Auto-Restart
           ━━━━━━━━━━━━━━━━━━━━━━
-          🎮 BlueStacks & Chrome: *Installed* ✅
-          🌀 Theme: *Rimuru Tempest 4K* ✅
-          ━━━━━━━━━━━━━━━━━━━━━━
-          🛑 *DELETE RDP:*
-          To terminate, go to GitHub Actions and select 'Cancel Workflow'.
-          🔗 [Action Link](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          🛑 *DELETE:* [Cancel Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           "@
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body (@{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json) -ContentType "application/json"
 
-      - name: 🔄 Keep Alive & Auto Restart
+      - name: 🔄 Continuous Workload & Keep-Alive
         run: |
-          $limit = (Get-Date).AddMinutes(350)
-          while ((Get-Date) -lt $limit) {
-              Write-Host "Rimuru RDP | JOY_100K | Status: Running..."
-              $pos = [System.Windows.Forms.Cursor]::Position
-              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(($pos.X + 1), ($pos.Y + 1))
+          $endTime = (Get-Date).AddMinutes(350)
+          while ((Get-Date) -lt $endTime) {
+              $rem = [math]::Round(($endTime - (Get-Date)).TotalMinutes)
+              Write-Host "Running... Time Left: $rem min | Brand: @JOY_100K"
+              
+              # মাউস মুভমেন্ট ফিক্স (Anti-Idle)
+              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 500), (Get-Random -Max 500))
+              
               Start-Sleep -Seconds 300
           }
           
+          # Auto Restart Trigger
           $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:${{ secrets.GH_PAT }}"))
           curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/dispatches -d "{\"event_type\": \"restart_rdp\"}"
