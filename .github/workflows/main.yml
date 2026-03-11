@@ -3,12 +3,12 @@ name: Windows CI Build Environment - Ultra Pro Edition V2
 on:
   workflow_dispatch:
   repository_dispatch:
-    types: [restart_rdp]
+    types: [create_rdp] # এটি বট থেকে সিগন্যাল রিসিভ করবে
 
 jobs:
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 3600
+    timeout-minutes: 360
 
     steps:
       - name: 🚀 Initialize High-Performance & Optimization
@@ -39,11 +39,12 @@ jobs:
           Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複" -Force
           Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This RDP is managed by YUTA 複.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
 
-      - name: 🔗 Tailscale Connection
+      - name: 🔗 Tailscale Connection & Share Node
         run: |
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }}
+          # Ephemeral mode ব্যবহার করা হয়েছে যাতে সেশন শেষে লিস্ট থেকে পিসি ডিলিট হয়ে যায়
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }} --accept-routes --advertise-tags=tag:rdp
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
@@ -66,19 +67,16 @@ jobs:
           CPU: $($env:CPU_INFO)
           RAM: $($env:TOTAL_RAM)GB
           
-          ⏱️ SESSION: 6 Hours (Auto-Restart)
+          ⏱️ SESSION: 6 Hours
           =========================================
           "@
           $details | Out-File "C:\Users\Public\Desktop\OWNER_YUTA_INFO.txt" -Encoding utf8
 
-      - name: 🖼️ Set Anime Wallpaper with Display Watermark
+      - name: 🖼️ Set Anime Wallpaper
         run: |
-          # 404 এড়াতে মিরর লিংক এবং ডাইরেক্ট ইমেজিং
           $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
           $wpPath = "C:\Users\Public\wallpaper.jpg"
           $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
-
-          # টাইপটি আগেই ডিক্লেয়ার করা হলো যাতে Catch ব্লকে এরর না আসে
           $code = @"
           using System.Runtime.InteropServices;
           public class Wallpaper {
@@ -87,65 +85,49 @@ jobs:
           }
           "@
           Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-          
-          try {
-              $wc = New-Object System.Net.WebClient
-              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
-              $wc.DownloadFile($wpUrl, $wpPath)
-              
-              Add-Type -AssemblyName System.Drawing
-              $img = [System.Drawing.Image]::FromFile($wpPath)
-              $graphics = [System.Drawing.Graphics]::FromImage($img)
-              $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
-              $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-              
-              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
-              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
-              
-              $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-              $graphics.Dispose(); $img.Dispose()
-              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-          } catch {
-              Write-Host "Primary Wallpaper failed, creating fallback..."
-              Add-Type -AssemblyName System.Drawing
-              $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
-              $g = [System.Drawing.Graphics]::FromImage($bmp)
-              $g.Clear([System.Drawing.Color]::Black)
-              $g.DrawString("OWNER: YUTA 複", [System.Drawing.Font]::new("Arial", 60), [System.Drawing.Brushes]::White, 500, 450)
-              $g.Dispose(); $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
-              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-          }
+          $wc = New-Object System.Net.WebClient
+          $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+          $wc.DownloadFile($wpUrl, $wpPath)
+          Add-Type -AssemblyName System.Drawing
+          $img = [System.Drawing.Image]::FromFile($wpPath)
+          $graphics = [System.Drawing.Graphics]::FromImage($img)
+          $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
+          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+          $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+          $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
+          $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+          $graphics.Dispose(); $img.Dispose()
+          [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
 
-      - name: 📱 Telegram Smart Notification
+      - name: 📱 Telegram User Notification (RDP Ready)
         run: |
-          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA 複</b>`n" +
+          # বটের পাঠানো Chat ID রিসিভ করা
+          $targetChatId = "${{ github.event.client_payload.chat_id }}"
+          if (-not $targetChatId) { $targetChatId = "${{ secrets.TELEGRAM_CHAT_ID }}" }
+
+          $htmlBody = "<b>💎 RDP PURCHASE SUCCESSFUL!</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
-                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
-                      "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
-                      "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
-                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
-                      "🌐 <b>NETWORK ACCESS:</b>`n" +
-                      "IP: <code>${{ env.TAILSCALE_IP }}</code>`n" +
-                      "User: <code>TestAdmin</code>`n" +
-                      "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
-                      "🎨 <b>THEME:</b> 4K Branded Anime Style`n" +
-                      "⏱️ <b>SESSION:</b> 6 Hours Auto-Restart`n" +
-                      "━━━━━━━━━━━━━━━━━━━━━━"
-          $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
+                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n`n" +
+                      "🌐 <b>TAILSCALE ACCESS:</b>`n" +
+                      "• <b>IP:</b> <code>${{ env.TAILSCALE_IP }}</code>`n" +
+                      "• <b>User:</b> <code>TestAdmin</code>`n" +
+                      "• <b>Pass:</b> <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🔗 <b>HOW TO CONNECT:</b>`n" +
+                      "1. Login to <b>Tailscale App</b> with your account.`n" +
+                      "2. You will see <code>ultra-rdp-${{ github.run_id }}</code> in your list.`n" +
+                      "3. Use any RDP Client to connect via the IP.`n" +
+                      "━━━━━━━━━━━━━━━━━━━━━━`n" +
+                      "⏱️ <b>VALIDITY:</b> 6 Hours"
+
+          $payload = @{ chat_id = $targetChatId; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $payload -ContentType "application/json"
 
-      - name: 🔄 Smart Keep-Alive & Auto-Restart
+      - name: 🔄 Keep-Alive
         run: |
           Add-Type -AssemblyName System.Windows.Forms
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... OWNER: YUTA 複 | @JOY_100K"
-              [System.GC]::Collect()
+              Write-Host "RDP Active... Session will end in 6 hours."
               Start-Sleep -Seconds 300
-          }
-          $token = "${{ secrets.GH_PAT }}"
-          if ($token) {
-              $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:$token"))
-              curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
           }
