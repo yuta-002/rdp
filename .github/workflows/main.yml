@@ -63,8 +63,8 @@ jobs:
           } catch { Write-Host "Wallpaper setup skipped" }
 
           $brandingText = "=========================================`nOWNER: YUTA`nTELEGRAM: @JOY_100K`n=========================================`nWelcome to Ultra Pro Build Environment`n========================================="
-          $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO.txt"
-          $brandingText | Out-File "C:\Users\Public\Desktop\WELCOME_YUTA.txt"
+          $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO_YUTA.txt"
+          $brandingText | Out-File "C:\Users\Public\Desktop\WELCOME.txt"
 
       - name: 🔗 Tailscale Connection
         run: |
@@ -74,11 +74,29 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 📱 Telegram Smart Notification
+      - name: 📱 Telegram Smart Notification (HTML Mode)
         run: |
-          $text = "💎 *ULTRA PRO RDP V2 BY YUTA*`n━━━━━━━━━━━━━━━━━━━━━━`n👤 *OWNER:* YUTA (@JOY_100K)`n💻 *OS:* ${{ env.OS_INFO }}`n🧠 *CPU:* ${{ env.CPU_INFO }}`n🔋 *RAM:* ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n🌐 *NETWORK ACCESS:*`nIP: \`${{ env.TAILSCALE_IP }}\``nUser: \`TestAdmin\``nPass: \`${{ env.RDP_PASS }}\``n`n🎨 *THEME:* 4K Dark Anime Style`n⏱️ *SESSION:* 6 Hours Auto-Restart`n━━━━━━━━━━━━━━━━━━━━━━"
-          $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json
-          Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $body -ContentType "application/json"
+          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA</b>`n" +
+                      "━━━━━━━━━━━━━━━━━━━━━━`n" +
+                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
+                      "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
+                      "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
+                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
+                      "🌐 <b>NETWORK ACCESS:</b>`n" +
+                      "IP: <code>${{ env.TAILSCALE_IP }}</code>`n" +
+                      "User: <code>TestAdmin</code>`n" +
+                      "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🎨 <b>THEME:</b> 4K Dark Anime Style`n" +
+                      "⏱️ <b>SESSION:</b> 6 Hours Auto-Restart`n" +
+                      "━━━━━━━━━━━━━━━━━━━━━━"
+
+          $payload = @{
+              chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
+              text = $htmlBody
+              parse_mode = "HTML"
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $payload -ContentType "application/json"
 
       - name: 🔄 Smart Keep-Alive & Auto-Restart
         run: |
@@ -86,7 +104,8 @@ jobs:
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... Owner: YUTA"
+              Write-Host "Running... Owner: YUTA | Time Left: $([math]::Round(($endTime - (Get-Date)).TotalMinutes)) min"
+              [System.GC]::Collect()
               Start-Sleep -Seconds 300
           }
           $token = "${{ secrets.GH_PAT }}"
