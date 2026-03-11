@@ -1,4 +1,4 @@
-name: Windows CI Build Environment - Ultra Pro Edition V2 (Branded)
+name: Windows CI Build Environment - Ultra Pro Edition V2 (Ultimate Master Branding)
 
 on:
   workflow_dispatch:
@@ -33,21 +33,26 @@ jobs:
           $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
           echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
-      - name: 🛡️ Set Owner Watermark & Japanese Branding
+      - name: 🛡️ Set Owner Watermark & Master UI Tweaks
         run: |
           # Legal Notice on Startup
           $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
           Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複 (ユタ)" -Force
-          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This High-Performance RDP is managed by YUTA 複.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
-
-          # OEM System Information Branding
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This High-Performance RDP is managed by YUTA 複 Master.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
+          
+          # OEM Information
           $oemInfo = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
           if (!(Test-Path $oemInfo)) { New-Item -Path $oemInfo -Force }
-          Set-ItemProperty -Path $oemInfo -Name "Manufacturer" -Value "YUTA 複 Edition" -Force
+          Set-ItemProperty -Path $oemInfo -Name "Manufacturer" -Value "YUTA Master Edition" -Force
           Set-ItemProperty -Path $oemInfo -Name "SupportURL" -Value "https://t.me/JOY_100K" -Force
-          Set-ItemProperty -Path $oemInfo -Name "Model" -Value "Ultra Pro Build V2 (Japanese Optimized)" -Force
 
-      - name: 🔗 Setup ngrok Tunnel (Stripping TCP prefix)
+          # Enable System-Wide Dark Mode for YUTA Style
+          $regApps = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+          if (!(Test-Path $regApps)) { New-Item -Path $regApps -Force }
+          Set-ItemProperty -Path $regApps -Name "AppsUseLightTheme" -Value 0 -Force
+          Set-ItemProperty -Path $regApps -Name "SystemUsesLightTheme" -Value 0 -Force
+
+      - name: 🔗 Setup ngrok Tunnel
         run: |
           Invoke-WebRequest -Uri "https://bin.equinox.io/c/bPR9B2h3Y6e/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
           Expand-Archive -Path "ngrok.zip" -DestinationPath "."
@@ -58,38 +63,48 @@ jobs:
           $cleanUrl = $ngrokRawUrl -replace "tcp://", ""
           echo "NGROK_URL=$cleanUrl" >> $env:GITHUB_ENV
 
-      - name: 📝 Generate User Details & PowerShell Banner
+      - name: 🔊 Setup Master Voice & Welcome (Startup)
         run: |
-          # Desktop Info File
+          $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
+          
+          # 1. Master Voice Greeting Script (Updated to Master)
+          $voiceScript = @"
+          Dim speaks, speech
+          speaks = "Welcome back, Master YUTA. System is online and high performance mode is active."
+          Set speech = CreateObject("sapi.spvoice")
+          speech.Speak speaks
+          "@
+          $voiceScript | Out-File "$startupFolder\WelcomeVoice.vbs" -Encoding utf8
+
+          # 2. Visual Master Welcome Pop-up
+          $msgScript = @"
+          MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Owner: @JOY_100K" & vbCrLf & vbCrLf & "Your private high-speed session is ready!", 64, "YUTA Master System"
+          "@
+          $msgScript | Out-File "$startupFolder\WelcomeMsg.vbs" -Encoding utf8
+
+      - name: 📝 Generate Master Desktop Branding
+        run: |
           $details = @"
           =========================================
-          👑 OWNER: YUTA 複 (ユタ)
+          👑 MASTER: YUTA 複 (ユタ)
           📱 TELEGRAM: @JOY_100K
           =========================================
-          🚀 ULTRA PRO RDP V2 - LOGIN DETAILS
+          🚀 ULTRA PRO RDP V2 - MASTER LOGIN
           =========================================
           🌐 NETWORK INFO:
           Address: $($env:NGROK_URL)
           User: TestAdmin
           Pass: $($env:RDP_PASS)
-          
-          💻 SYSTEM SPECS:
-          OS: $($env:OS_INFO)
-          CPU: $($env:CPU_INFO)
-          RAM: $($env:TOTAL_RAM)GB
-          
-          ⏱️ SESSION: 6 Hours (Auto-Restart)
           =========================================
           "@
-          $details | Out-File "C:\Users\Public\Desktop\OWNER_YUTA_INFO.txt" -Encoding utf8
+          $details | Out-File "C:\Users\Public\Desktop\MASTER_YUTA_INFO.txt" -Encoding utf8
 
-          # PowerShell Welcome Profile Branding
           $profilePath = "$Home\Documents\WindowsPowerShell"
           if (!(Test-Path $profilePath)) { New-Item -ItemType Directory -Path $profilePath -Force }
           $banner = @"
           Write-Host "==========================================================" -ForegroundColor Cyan
-          Write-Host "   🚀 WELCOME TO YUTA 複 (ユタ) ULTRA PRO RDP V2" -ForegroundColor Yellow
-          Write-Host "   📱 TELEGRAM: @JOY_100K | STATUS: CONNECTED" -ForegroundColor Green
+          Write-Host "   🚀 WELCOME MASTER YUTA 複 (ユタ) - ULTRA PRO V2" -ForegroundColor Yellow
+          Write-Host "   📱 TELEGRAM: @JOY_100K | MODE: SUPREME" -ForegroundColor Green
           Write-Host "==========================================================" -ForegroundColor Cyan
           "@
           $banner | Out-File "$profilePath\Microsoft.PowerShell_profile.ps1" -Encoding utf8
@@ -116,27 +131,20 @@ jobs:
               $graphics = [System.Drawing.Graphics]::FromImage($img)
               $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
               $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+              $graphics.DrawString("MASTER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
               $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
               $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
               $graphics.Dispose(); $img.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
           } catch {
-              Write-Host "Primary Wallpaper failed, creating fallback..."
-              Add-Type -AssemblyName System.Drawing
-              $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
-              $g = [System.Drawing.Graphics]::FromImage($bmp)
-              $g.Clear([System.Drawing.Color]::Black)
-              $g.DrawString("OWNER: YUTA 複", [System.Drawing.Font]::new("Arial", 60), [System.Drawing.Brushes]::White, 500, 450)
-              $g.Dispose(); $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
-              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+              Write-Host "Primary Wallpaper failed."
           }
 
       - name: 📱 Telegram Smart Notification
         run: |
-          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA 複 (ユタ)</b>`n" +
+          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY MASTER YUTA 複</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
-                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
+                      "👤 <b>MASTER:</b> YUTA (@JOY_100K)`n" +
                       "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
                       "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
                       "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
@@ -144,7 +152,6 @@ jobs:
                       "Address: <code>${{ env.NGROK_URL }}</code>`n" +
                       "User: <code>TestAdmin</code>`n" +
                       "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
-                      "🎨 <b>THEME:</b> 4K Branded Anime Style`n" +
                       "⏱️ <b>SESSION:</b> 6 Hours Auto-Restart`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━"
           $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
@@ -156,7 +163,7 @@ jobs:
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... OWNER: YUTA 複 | @JOY_100K"
+              Write-Host "Running... MASTER: YUTA 複 | @JOY_100K"
               [System.GC]::Collect()
               Start-Sleep -Seconds 300
           }
