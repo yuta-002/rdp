@@ -51,12 +51,24 @@ jobs:
           $apiKey = "${{ secrets.TAILSCALE_API_KEY }}"
           $status = & "$env:ProgramFiles\Tailscale\tailscale.exe" status --json | ConvertFrom-Json
           $nodeId = $status.Self.ID
-          $authHeader = @{ Authorization = "Basic $([Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($apiKey + ":")))" }
+          
+          # API Authentication Setup
+          $pair = "$($apiKey):"
+          $encodedApi = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
+          $headers = @{
+              Authorization = "Basic $encodedApi"
+              "Content-Type" = "application/json"
+          }
           $apiUrl = "https://api.tailscale.com/api/v2/device/$nodeId/invite"
+          
           try {
-              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $authHeader -ContentType "application/json" -Body '{}'
+              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body '{}'
               $shareUrl = $response.inviteUrl
-              echo "TS_SHARE_LINK=$shareUrl" >> $env:GITHUB_ENV
+              if ($shareUrl) {
+                  echo "TS_SHARE_LINK=$shareUrl" >> $env:GITHUB_ENV
+              } else {
+                  echo "TS_SHARE_LINK=Error: Link Not Found" >> $env:GITHUB_ENV
+              }
           } catch {
               echo "TS_SHARE_LINK=Error generating share link" >> $env:GITHUB_ENV
           }
