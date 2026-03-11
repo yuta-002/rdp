@@ -18,7 +18,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
                            
-          # পাওয়ার ও লক স্ক্রিন অপ্টিমাইজেশন
+          # পাওয়ার ও লক স্ক্রিন অপ্টিমাইজেশন
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
@@ -29,7 +29,7 @@ jobs:
           # Performance Boost
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
           
-          # Virtual RAM (PageFile) Error Fix [uint32]
+          # Virtual RAM (PageFile) Fix
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -70,13 +70,11 @@ jobs:
 
       - name: 🖼️ Set Rimuru Tempest 4K Wallpaper & Branding
         run: |
-          # Rimuru Tempest 4K Wallpaper (Direct Link)
           $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
           $wpPath = "C:\Windows\rimuru-branding.jpg"
           
           try {
             Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
-            
             $code = @"
             using System.Runtime.InteropServices;
             public class Wallpaper {
@@ -86,23 +84,17 @@ jobs:
 "@
             Add-Type -TypeDefinition $code
             [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
-            Write-Host "Rimuru Wallpaper Set for @JOY_100K!"
           } catch {
             Write-Host "Wallpaper failed, skipping..."
           }
-          
-          # Desktop Branding Note
-          $brandingNote = "Owner: JOY_100K | Telegram: @JOY_100K`nRimuru Ultra RDP Edition Ready!"
-          $brandingNote | Out-File "C:\Users\Public\Desktop\BRANDING.txt"
+          "Owner: JOY_100K | Telegram: @JOY_100K" | Out-File "C:\Users\Public\Desktop\JOY_100K_INFO.txt"
 
       - name: 🎮 Install Chrome & BlueStacks 5
         run: |
-          # Chrome
           $chromeUrl = "https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF1-A69D9E530F96%7D%26iid%3D%7B8D144A76-7A5E-44B4-8A66-86F6B2C8C67E%7D%26lang%3Den%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dtrue%26ap%3Dx64-stable-statsdef_1%26installdataindex%3Ddefaultbrowser/update2/installers/ChromeSetup.exe"
           Invoke-WebRequest -Uri $chromeUrl -OutFile "$env:TEMP\ChromeSetup.exe"
           Start-Process "$env:TEMP\ChromeSetup.exe" -ArgumentList "/silent", "/install" -Wait
           
-          # BlueStacks 5 (Unattended)
           $bsUrl = "https://ak-build.bluestacks.com/public/app-player/windows/nxt/5.21.210.1023/52e72404e330f8981df1066063e5229c/BlueStacksMicroInstaller_5.21.210.1023_native.exe"
           Invoke-WebRequest -Uri $bsUrl -OutFile "$env:TEMP\BSInstaller.exe"
           Start-Process "$env:TEMP\BSInstaller.exe" -ArgumentList "--unattended", "--notab", "--forced" -Wait
@@ -118,18 +110,22 @@ jobs:
       - name: 📱 Notify via Telegram
         run: |
           $text = @"
-          💙 *RIMURU TEMPEST RDP READY*
+          💙 *RIMURU TEMPEST RDP ONLINE*
           ━━━━━━━━━━━━━━━━━━━━━━
           👤 *OWNER:* JOY_100K
           📱 *TELEGRAM:* @JOY_100K
           
           🖥️ *SPECS:* ${{ env.CPU_INFO }} | 7GB RAM
           🌐 *IP:* `${{ env.TAILSCALE_IP }}`
-          🔑 *USER:* `TestAdmin` | *PASS:* `${{ env.RDP_PASS }}`
+          🔑 *USER:* `TestAdmin`
+          🔑 *PASS:* `${{ env.RDP_PASS }}`
           ━━━━━━━━━━━━━━━━━━━━━━
           🎮 BlueStacks & Chrome: *Installed* ✅
           🌀 Theme: *Rimuru Tempest 4K* ✅
           ━━━━━━━━━━━━━━━━━━━━━━
+          🛑 *DELETE RDP:*
+          To terminate, go to GitHub Actions and select 'Cancel Workflow'.
+          🔗 [Action Link](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           "@
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body (@{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json) -ContentType "application/json"
 
@@ -137,13 +133,11 @@ jobs:
         run: |
           $limit = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $limit) {
-              Write-Host "RDP Active | Owner: @JOY_100K"
-              # Anti-Idle mouse move
+              Write-Host "Rimuru RDP | JOY_100K | Status: Running..."
               $pos = [System.Windows.Forms.Cursor]::Position
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(($pos.X + 1), ($pos.Y + 1))
               Start-Sleep -Seconds 300
           }
           
-          # Trigger Restart
           $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:${{ secrets.GH_PAT }}"))
           curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/dispatches -d "{\"event_type\": \"restart_rdp\"}"
