@@ -1,4 +1,4 @@
-name: Windows Master CI - Ultra Pro V2 (Ultimate Branding)
+name: Windows Master CI - Ultra Pro V2 (Ultimate Branding Fixed)
 
 on:
   workflow_dispatch:
@@ -49,22 +49,35 @@ jobs:
           Set-ItemProperty -Path $regApps -Name "AppsUseLightTheme" -Value 0 -Force
           Set-ItemProperty -Path $regApps -Name "SystemUsesLightTheme" -Value 0 -Force
 
-      - name: 🔗 Setup ngrok Tunnel (Choco Fix)
+      - name: 🔗 Setup ngrok Tunnel (Final Connection Fix)
         run: |
-          # chocolatey ব্যবহার করে লেটেস্ট ngrok ইন্সটল (Stable Method)
           choco install ngrok -y
+          $env:Path += ";C:\ProgramData\chocolatey\bin"
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          Start-Process -FilePath "ngrok" -ArgumentList "tcp 3389"
-          Start-Sleep -Seconds 15
-          $ngrokRawUrl = (Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels").tunnels.public_url
-          $cleanUrl = $ngrokRawUrl -replace "tcp://", ""
-          echo "NGROK_URL=$cleanUrl" >> $env:GITHUB_ENV
+          Start-Process -FilePath "ngrok.exe" -ArgumentList "tcp 3389" -WindowStyle Hidden
+          
+          Write-Host "Waiting for ngrok to initialize..." -ForegroundColor Cyan
+          $retryCount = 0
+          while ($retryCount -lt 20) {
+              try {
+                  $response = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
+                  if ($response.tunnels.Count -gt 0) {
+                      $ngrokRawUrl = $response.tunnels[0].public_url
+                      $cleanUrl = $ngrokRawUrl -replace "tcp://", ""
+                      echo "NGROK_URL=$cleanUrl" >> $env:GITHUB_ENV
+                      Write-Host "ngrok is ready! URL: $cleanUrl" -ForegroundColor Green
+                      break
+                  }
+              } catch {
+                  Start-Sleep -Seconds 5
+                  $retryCount++
+                  Write-Host "Retrying ($retryCount/20)..."
+              }
+          }
 
       - name: 🔊 Setup Master Voice & Welcome (Startup)
         run: |
           $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
-          
-          # Master Voice Greeting
           $voiceScript = @"
           Dim speaks, speech
           speaks = "Welcome back, Master YUTA. System is online and high performance mode is active."
@@ -73,7 +86,6 @@ jobs:
           "@
           $voiceScript | Out-File "$startupFolder\WelcomeVoice.vbs" -Encoding utf8
 
-          # Visual Master Pop-up
           $msgScript = @"
           MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Owner: @JOY_100K" & vbCrLf & vbCrLf & "High-speed master session is ready!", 64, "YUTA Master System"
           "@
