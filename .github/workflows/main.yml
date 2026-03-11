@@ -47,30 +47,36 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
           
-          # --- [ SHARE LINK GENERATION LOGIC ] ---
+          # --- [ SHARE LINK GENERATION WITH DEBUG MODE ] ---
           $apiKey = "${{ secrets.TAILSCALE_API_KEY }}"
+          if (-not $apiKey) { 
+              echo "TS_SHARE_LINK=Error: TAILSCALE_API_KEY Secret is missing!" >> $env:GITHUB_ENV
+              exit 0
+          }
+
           $status = & "$env:ProgramFiles\Tailscale\tailscale.exe" status --json | ConvertFrom-Json
           $nodeId = $status.Self.ID
           
-          # API Authentication Setup
           $pair = "$($apiKey):"
           $encodedApi = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
-          $headers = @{
-              Authorization = "Basic $encodedApi"
-              "Content-Type" = "application/json"
-          }
+          $headers = @{ Authorization = "Basic $encodedApi"; "Content-Type" = "application/json" }
           $apiUrl = "https://api.tailscale.com/api/v2/device/$nodeId/invite"
           
           try {
-              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body '{}'
-              $shareUrl = $response.inviteUrl
-              if ($shareUrl) {
-                  echo "TS_SHARE_LINK=$shareUrl" >> $env:GITHUB_ENV
+              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body '{}' -ErrorAction Stop
+              if ($response.inviteUrl) {
+                  echo "TS_SHARE_LINK=$($response.inviteUrl)" >> $env:GITHUB_ENV
               } else {
-                  echo "TS_SHARE_LINK=Error: Link Not Found" >> $env:GITHUB_ENV
+                  echo "TS_SHARE_LINK=Error: Link field empty in API response" >> $env:GITHUB_ENV
               }
           } catch {
-              echo "TS_SHARE_LINK=Error generating share link" >> $env:GITHUB_ENV
+              $errMsg = $_.Exception.Message
+              if ($_.Exception.Response) {
+                  $statusCode = [int]$_.Exception.Response.StatusCode
+                  echo "TS_SHARE_LINK=Error $statusCode : $errMsg" >> $env:GITHUB_ENV
+              } else {
+                  echo "TS_SHARE_LINK=Error: $errMsg" >> $env:GITHUB_ENV
+              }
           }
 
       - name: 📝 Generate User Details with Watermark
