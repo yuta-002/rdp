@@ -43,7 +43,6 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
-          # Ephemeral mode ব্যবহার করা হয়েছে যাতে সেশন শেষে লিস্ট থেকে পিসি ডিলিট হয়ে যায়
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }} --accept-routes --advertise-tags=tag:rdp
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
@@ -72,36 +71,8 @@ jobs:
           "@
           $details | Out-File "C:\Users\Public\Desktop\OWNER_YUTA_INFO.txt" -Encoding utf8
 
-      - name: 🖼️ Set Anime Wallpaper
-        run: |
-          $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
-          $wpPath = "C:\Users\Public\wallpaper.jpg"
-          $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
-          $code = @"
-          using System.Runtime.InteropServices;
-          public class Wallpaper {
-              [DllImport("user32.dll", CharSet = CharSet.Auto)]
-              public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-          }
-          "@
-          Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-          $wc = New-Object System.Net.WebClient
-          $wc.Headers.Add("User-Agent", "Mozilla/5.0")
-          $wc.DownloadFile($wpUrl, $wpPath)
-          Add-Type -AssemblyName System.Drawing
-          $img = [System.Drawing.Image]::FromFile($wpPath)
-          $graphics = [System.Drawing.Graphics]::FromImage($img)
-          $font = New-Object System.Drawing.Font("Arial", 45, [System.Drawing.FontStyle]::Bold)
-          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-          $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
-          $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
-          $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-          $graphics.Dispose(); $img.Dispose()
-          [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
-
       - name: 📱 Telegram User Notification (RDP Ready)
         run: |
-          # বটের পাঠানো Chat ID রিসিভ করা
           $targetChatId = "${{ github.event.client_payload.chat_id }}"
           if (-not $targetChatId) { $targetChatId = "${{ secrets.TELEGRAM_CHAT_ID }}" }
 
