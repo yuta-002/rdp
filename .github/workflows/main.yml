@@ -1,4 +1,4 @@
-name: Windows CI Build Environment - Ultra Pro Edition V2 (Ultimate Master Branding)
+name: Windows Master CI - Ultra Pro V2 (Ultimate Branding)
 
 on:
   workflow_dispatch:
@@ -20,12 +20,12 @@ jobs:
           netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: 👤 Create Admin & Branding Info
+      - name: 👤 Create Master Admin & Info
         run: |
           $chars = (65..90) + (97..122) + (48..57) + (33, 35, 36, 37)
           $password = -join ($chars | Get-Random -Count 14 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "YUTA Admin" -Description "Managed by @JOY_100K" -AccountNeverExpires
+          New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "YUTA Master" -Description "Managed by @JOY_100K" -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
@@ -33,32 +33,29 @@ jobs:
           $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
           echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
-      - name: 🛡️ Set Owner Watermark & Master UI Tweaks
+      - name: 🛡️ Set Master Watermark & Japanese Style
         run: |
-          # Legal Notice on Startup
           $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-          Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複 (ユタ)" -Force
-          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This High-Performance RDP is managed by YUTA 複 Master.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP MASTER: YUTA 複 (ユタ)" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "Welcome, Master YUTA 複.`nTelegram: @JOY_100K`n`nSystem is fully optimized for your command!" -Force
           
-          # OEM Information
           $oemInfo = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation"
           if (!(Test-Path $oemInfo)) { New-Item -Path $oemInfo -Force }
           Set-ItemProperty -Path $oemInfo -Name "Manufacturer" -Value "YUTA Master Edition" -Force
           Set-ItemProperty -Path $oemInfo -Name "SupportURL" -Value "https://t.me/JOY_100K" -Force
 
-          # Enable System-Wide Dark Mode for YUTA Style
           $regApps = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
           if (!(Test-Path $regApps)) { New-Item -Path $regApps -Force }
           Set-ItemProperty -Path $regApps -Name "AppsUseLightTheme" -Value 0 -Force
           Set-ItemProperty -Path $regApps -Name "SystemUsesLightTheme" -Value 0 -Force
 
-      - name: 🔗 Setup ngrok Tunnel
+      - name: 🔗 Setup ngrok Tunnel (Choco Fix)
         run: |
-          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bPR9B2h3Y6e/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-          Expand-Archive -Path "ngrok.zip" -DestinationPath "."
-          .\ngrok.exe config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          Start-Process -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
-          Start-Sleep -Seconds 12
+          # chocolatey ব্যবহার করে লেটেস্ট ngrok ইন্সটল (Stable Method)
+          choco install ngrok -y
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          Start-Process -FilePath "ngrok" -ArgumentList "tcp 3389"
+          Start-Sleep -Seconds 15
           $ngrokRawUrl = (Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels").tunnels.public_url
           $cleanUrl = $ngrokRawUrl -replace "tcp://", ""
           echo "NGROK_URL=$cleanUrl" >> $env:GITHUB_ENV
@@ -67,7 +64,7 @@ jobs:
         run: |
           $startupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
           
-          # 1. Master Voice Greeting Script (Updated to Master)
+          # Master Voice Greeting
           $voiceScript = @"
           Dim speaks, speech
           speaks = "Welcome back, Master YUTA. System is online and high performance mode is active."
@@ -76,13 +73,13 @@ jobs:
           "@
           $voiceScript | Out-File "$startupFolder\WelcomeVoice.vbs" -Encoding utf8
 
-          # 2. Visual Master Welcome Pop-up
+          # Visual Master Pop-up
           $msgScript = @"
-          MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Owner: @JOY_100K" & vbCrLf & vbCrLf & "Your private high-speed session is ready!", 64, "YUTA Master System"
+          MsgBox "Welcome back, Master YUTA 複" & vbCrLf & "Owner: @JOY_100K" & vbCrLf & vbCrLf & "High-speed master session is ready!", 64, "YUTA Master System"
           "@
           $msgScript | Out-File "$startupFolder\WelcomeMsg.vbs" -Encoding utf8
 
-      - name: 📝 Generate Master Desktop Branding
+      - name: 📝 Generate Master Desktop Info & Banner
         run: |
           $details = @"
           =========================================
@@ -104,12 +101,12 @@ jobs:
           $banner = @"
           Write-Host "==========================================================" -ForegroundColor Cyan
           Write-Host "   🚀 WELCOME MASTER YUTA 複 (ユタ) - ULTRA PRO V2" -ForegroundColor Yellow
-          Write-Host "   📱 TELEGRAM: @JOY_100K | MODE: SUPREME" -ForegroundColor Green
+          Write-Host "   📱 TELEGRAM: @JOY_100K | MODE: MASTER SUPREME" -ForegroundColor Green
           Write-Host "==========================================================" -ForegroundColor Cyan
           "@
           $banner | Out-File "$profilePath\Microsoft.PowerShell_profile.ps1" -Encoding utf8
 
-      - name: 🖼️ Set Anime Wallpaper with Display Watermark
+      - name: 🖼️ Set Master Wallpaper
         run: |
           $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
           $wpPath = "C:\Users\Public\wallpaper.jpg"
@@ -137,18 +134,18 @@ jobs:
               $graphics.Dispose(); $img.Dispose()
               [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
           } catch {
-              Write-Host "Primary Wallpaper failed."
+              Write-Host "Wallpaper failed, using black background."
           }
 
-      - name: 📱 Telegram Smart Notification
+      - name: 📱 Telegram Master Notification
         run: |
-          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY MASTER YUTA 複</b>`n" +
+          $htmlBody = "<b>💎 ULTRA MASTER RDP V2 BY YUTA 複</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
                       "👤 <b>MASTER:</b> YUTA (@JOY_100K)`n" +
                       "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
                       "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
                       "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
-                      "🌐 <b>NETWORK ACCESS:</b>`n" +
+                      "🌐 <b>MASTER ACCESS:</b>`n" +
                       "Address: <code>${{ env.NGROK_URL }}</code>`n" +
                       "User: <code>TestAdmin</code>`n" +
                       "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
