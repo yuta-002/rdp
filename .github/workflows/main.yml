@@ -13,12 +13,10 @@ jobs:
     steps:
       - name: 🚀 Initialize High-Performance Environment
         run: |
-          # RDP ও সিকিউরিটি কনফিগারেশন
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
                            
-          # পাওয়ার ও স্লিপ অপ্টিমাইজেশন
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
@@ -26,10 +24,8 @@ jobs:
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
           
-          # Performance Mode Enable
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
           
-          # Virtual RAM (16GB PageFile) Fix
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -51,12 +47,11 @@ jobs:
           New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           
-          # Environment variables for later use
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
 
-      - name: 🖼️ Set Anime Wallpaper (Rimuru Tempest 4K)
+      - name: 🖼️ Set Anime Wallpaper
         run: |
           $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
           $wpPath = "C:\Windows\branding-wp.jpg"
@@ -74,13 +69,11 @@ jobs:
           } catch { Write-Host "Wallpaper skip" }
           "Welcome to Ultra Pro Build Environment | Managed by @JOY_100K" | Out-File "C:\Users\Public\Desktop\READ_ME.txt"
 
-      - name: 🎮 Install Pro Tools (Chrome & BlueStacks)
+      - name: 🎮 Install Pro Tools
         run: |
-          # Chrome Install
           Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "chrome.exe"
           Start-Process "chrome.exe" -ArgumentList "/silent", "/install" -Wait
           
-          # BlueStacks 5 (Standalone)
           Invoke-WebRequest -Uri "https://ak-build.bluestacks.com/public/app-player/windows/nxt/5.21.210.1023/52e72404e330f8981df1066063e5229c/BlueStacksMicroInstaller_5.21.210.1023_native.exe" -OutFile "BSInstaller.exe"
           Start-Process "BSInstaller.exe" -ArgumentList "--unattended", "--notab", "--forced" -Wait
 
@@ -92,7 +85,7 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 📱 Telegram Notification (A to Z Details)
+      - name: 📱 Telegram Notification
         run: |
           $text = @"
           🚀 *ULTRA PRO RDP ONLINE*
@@ -116,21 +109,28 @@ jobs:
           ━━━━━━━━━━━━━━━━━━━━━━
           🛑 *DELETE:* [Cancel Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           "@
-          Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body (@{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json) -ContentType "application/json"
+          $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json
+          Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $body -ContentType "application/json"
 
       - name: 🔄 Continuous Workload & Keep-Alive
         run: |
+          Add-Type -AssemblyName System.Windows.Forms
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               $rem = [math]::Round(($endTime - (Get-Date)).TotalMinutes)
               Write-Host "Running... Time Left: $rem min | Brand: @JOY_100K"
               
-              # মাউস মুভমেন্ট ফিক্স (Anti-Idle)
+              # Mouse Movement Fix (Anti-Idle)
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 500), (Get-Random -Max 500))
               
               Start-Sleep -Seconds 300
           }
           
-          # Auto Restart Trigger
-          $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${{ github.actor }}:${{ secrets.GH_PAT }}"))
-          curl -X POST -H "Authorization: Basic $auth" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/dispatches -d "{\"event_type\": \"restart_rdp\"}"
+          # Fixed Auto Restart Trigger
+          $token = "${{ secrets.GH_PAT }}"
+          $user = "${{ github.actor }}"
+          $pair = "$($user):$($token)"
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
+          $authHeader = "Basic $encoded"
+          
+          curl -X POST -H "Authorization: $authHeader" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
