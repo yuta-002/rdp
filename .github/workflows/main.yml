@@ -16,63 +16,28 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
-          
-          powercfg -change -standby-timeout-ac 0
-          powercfg -change -monitor-timeout-ac 0
-          powercfg -change -hibernate-timeout-ac 0
-          $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
-          if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-          Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
-          
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-          
-          Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
-          $pagefile = Get-CimInstance Win32_PageFileSetting
-          if ($pagefile) { $pagefile | Remove-CimInstance }
-          New-CimInstance -ClassName Win32_PageFileSetting -Property @{
-              Name = "C:\pagefile.sys";
-              InitialSize = [uint32]8192;
-              MaximumSize = [uint32]16384
-          }
           netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
       - name: 👤 Create Admin & Branding Info
         run: |
-          # পাসওয়ার্ড জেনারেশন এবং ইউজার ক্রিয়েশন ফিক্স
           $chars = (65..90) + (97..122) + (48..57) + (33, 35, 36, 37)
           $password = -join ($chars | Get-Random -Count 14 | ForEach-Object {[char]$_})
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
-          # New-LocalUser কমান্ডে পাসওয়ার্ড প্যারামিটার যোগ করা হয়েছে
           New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "YUTA Admin" -Description "Managed by @JOY_100K" -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
-          
           echo "RDP_PASS=$password" >> $env:GITHUB_ENV
           echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
           echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
           $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
           echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
-      - name: 🖼️ Set Intense 4K Anime Wallpaper & Desktop Branding
+      - name: 🛡️ Set Owner Watermark (Legal Notice)
         run: |
-          $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
-          $wpPath = "C:\Windows\branding-wp.jpg"
-          try {
-              Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
-              $code = @"
-          using System.Runtime.InteropServices;
-          public class Wallpaper {
-              [DllImport("user32.dll", CharSet = CharSet.Auto)]
-              public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
-          }
-          "@
-              Add-Type -TypeDefinition $code
-              [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
-          } catch { Write-Host "Wallpaper setup skipped" }
-
-          $brandingText = "=========================================`nOWNER: YUTA`nTELEGRAM: @JOY_100K`n=========================================`nWelcome to Ultra Pro Build Environment`n========================================="
-          $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO_YUTA.txt"
+          $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+          Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This RDP is managed by YUTA 複.`nTelegram: @JOY_100K`n`nAuthorized access only!" -Force
 
       - name: 🔗 Tailscale Connection
         run: |
@@ -82,9 +47,73 @@ jobs:
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
+      - name: 📝 Generate User Details with Watermark
+        run: |
+          $details = @"
+          =========================================
+          👑 OWNER: YUTA 複
+          📱 TELEGRAM: @JOY_100K
+          =========================================
+          🚀 ULTRA PRO RDP V2 - LOGIN DETAILS
+          =========================================
+          🌐 NETWORK INFO:
+          IP: $($env:TAILSCALE_IP)
+          User: TestAdmin
+          Pass: $($env:RDP_PASS)
+          
+          💻 SYSTEM SPECS:
+          OS: $($env:OS_INFO)
+          CPU: $($env:CPU_INFO)
+          RAM: $($env:TOTAL_RAM)GB
+          
+          ⏱️ SESSION: 6 Hours (Auto-Restart)
+          =========================================
+          "@
+          $details | Out-File "C:\Users\Public\Desktop\OWNER_YUTA_INFO.txt" -Encoding utf8
+
+      - name: 🖼️ Set Anime Wallpaper with Display Watermark
+        run: |
+          $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
+          $wpPath = "C:\Users\Public\wallpaper.jpg"
+          $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
+          
+          try {
+              # ইমেজ ডাউনলোড
+              Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
+              
+              # ইমেজ প্রসেসিং এর জন্য .NET ড্রয়িং লাইব্রেরি লোড
+              Add-Type -AssemblyName System.Drawing
+              $img = [System.Drawing.Image]::FromFile($wpPath)
+              $graphics = [System.Drawing.Graphics]::FromImage($img)
+              
+              # ফন্ট এবং রঙ নির্ধারণ (সাদা রঙের বোল্ড টেক্সট)
+              $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
+              $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+              
+              # স্ক্রিনের ডানদিকের নিচে নাম লেখা (Watermark Position)
+              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 50, ($img.Height - 150))
+              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 50, ($img.Height - 80))
+              
+              # ইমেজ সেভ এবং রিসোর্স ক্লিনআপ
+              $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              $graphics.Dispose()
+              $img.Dispose()
+
+              # ওয়ালপেপার সেট করার C# কোড
+              $code = @"
+          using System.Runtime.InteropServices;
+          public class Wallpaper {
+              [DllImport("user32.dll", CharSet = CharSet.Auto)]
+              public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+          }
+          "@
+              Add-Type -TypeDefinition $code
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+          } catch { Write-Host "Wallpaper branding failed, skipping..." }
+
       - name: 📱 Telegram Smart Notification
         run: |
-          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA</b>`n" +
+          $htmlBody = "<b>💎 ULTRA PRO RDP V2 BY YUTA 複</b>`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━`n" +
                       "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
                       "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
@@ -94,16 +123,10 @@ jobs:
                       "IP: <code>${{ env.TAILSCALE_IP }}</code>`n" +
                       "User: <code>TestAdmin</code>`n" +
                       "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
-                      "🎨 <b>THEME:</b> 4K Dark Anime Style`n" +
+                      "🎨 <b>THEME:</b> 4K Branded Anime Style`n" +
                       "⏱️ <b>SESSION:</b> 6 Hours Auto-Restart`n" +
                       "━━━━━━━━━━━━━━━━━━━━━━"
-
-          $payload = @{
-              chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
-              text = $htmlBody
-              parse_mode = "HTML"
-          } | ConvertTo-Json
-
+          $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $payload -ContentType "application/json"
 
       - name: 🔄 Smart Keep-Alive & Auto-Restart
@@ -112,7 +135,7 @@ jobs:
           $endTime = (Get-Date).AddMinutes(350)
           while ((Get-Date) -lt $endTime) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-              Write-Host "Running... Owner: YUTA | Time: $(Get-Date -Format 'HH:mm:ss')"
+              Write-Host "Running... OWNER: YUTA 複 | @JOY_100K"
               [System.GC]::Collect()
               Start-Sleep -Seconds 300
           }
