@@ -43,17 +43,18 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
+          
+          # Login to Tailscale
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }} --accept-routes --advertise-tags=tag:rdp
+          
+          # Wait 15 seconds for Tailscale backend to register the node properly
+          Start-Sleep -Seconds 15
+          
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
           
-          # --- [ SHARE LINK GENERATION WITH DEBUG MODE ] ---
+          # --- [ SHARE LINK GENERATION WITH RETRY LOGIC ] ---
           $apiKey = "${{ secrets.TAILSCALE_API_KEY }}"
-          if (-not $apiKey) { 
-              echo "TS_SHARE_LINK=Error: TAILSCALE_API_KEY Secret is missing!" >> $env:GITHUB_ENV
-              exit 0
-          }
-
           $status = & "$env:ProgramFiles\Tailscale\tailscale.exe" status --json | ConvertFrom-Json
           $nodeId = $status.Self.ID
           
@@ -62,20 +63,25 @@ jobs:
           $headers = @{ Authorization = "Basic $encodedApi"; "Content-Type" = "application/json" }
           $apiUrl = "https://api.tailscale.com/api/v2/device/$nodeId/invite"
           
-          try {
-              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body '{}' -ErrorAction Stop
-              if ($response.inviteUrl) {
-                  echo "TS_SHARE_LINK=$($response.inviteUrl)" >> $env:GITHUB_ENV
-              } else {
-                  echo "TS_SHARE_LINK=Error: Link field empty in API response" >> $env:GITHUB_ENV
-              }
-          } catch {
-              $errMsg = $_.Exception.Message
-              if ($_.Exception.Response) {
-                  $statusCode = [int]$_.Exception.Response.StatusCode
-                  echo "TS_SHARE_LINK=Error $statusCode : $errMsg" >> $env:GITHUB_ENV
-              } else {
-                  echo "TS_SHARE_LINK=Error: $errMsg" >> $env:GITHUB_ENV
+          $maxRetries = 3
+          $currentRetry = 0
+          $success = $false
+
+          while (-not $success -and $currentRetry -lt $maxRetries) {
+              try {
+                  $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body '{}' -ErrorAction Stop
+                  if ($response.inviteUrl) {
+                      echo "TS_SHARE_LINK=$($response.inviteUrl)" >> $env:GITHUB_ENV
+                      $success = $true
+                  }
+              } catch {
+                  $currentRetry++
+                  Write-Host "Retry $currentRetry : Node not found yet, waiting 10s..."
+                  Start-Sleep -Seconds 10
+                  if ($currentRetry -eq $maxRetries) {
+                      $statusCode = [int]$_.Exception.Response.StatusCode
+                      echo "TS_SHARE_LINK=Error $statusCode : ACL or Node Not Found" >> $env:GITHUB_ENV
+                  }
               }
           }
 
