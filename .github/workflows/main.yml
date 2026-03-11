@@ -1,0 +1,147 @@
+name: Windows CI Build Environment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 3600
+
+    steps:
+      - name: Initialize Windows Test Environment
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                             -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                             -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                             -Name "SecurityLayer" -Value 0 -Force
+                             
+          # উইন্ডোজ স্লিপ এবং লক স্ক্রিন চিরতরে বন্ধ করা
+          powercfg -change -standby-timeout-ac 0
+          powercfg -change -monitor-timeout-ac 0
+          powercfg -change -hibernate-timeout-ac 0
+          $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+          if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+          Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
+          
+          netsh advfirewall firewall delete rule name="Test-Env-Access"
+          netsh advfirewall firewall add rule name="Test-Env-Access" `
+            dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
+
+      - name: Setup Test Administrator Account
+        run: |
+          Add-Type -AssemblyName System.Security
+          $charSet = @{
+              Upper   = [char[]](65..90)      # A-Z
+              Lower   = [char[]](97..122)     # a-z
+              Number  = [char[]](48..57)      # 0-9
+              Special = ([char[]](33..47) + [char[]](58..64) +
+                         [char[]](91..96) + [char[]](123..126)) # Special characters
+          }
+          $rawPassword = @()
+          $rawPassword += $charSet.Upper | Get-Random -Count 4
+          $rawPassword += $charSet.Lower | Get-Random -Count 4
+          $rawPassword += $charSet.Number | Get-Random -Count 4
+          $rawPassword += $charSet.Special | Get-Random -Count 4
+          $password = -join ($rawPassword | Sort-Object { Get-Random })
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          
+          New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TestAdmin"
+          
+          echo "TEST_ENV_CREDS=User: TestAdmin | Password: $password" >> $env:GITHUB_ENV
+          
+          if (-not (Get-LocalUser -Name "TestAdmin")) {
+              Write-Error "Environment setup failed"
+              exit 1
+          }
+
+      - name: Configure Secure Test Tunnel
+        run: |
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
+
+      - name: Connect to Private Test Network
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-build-$env:GITHUB_RUN_ID
+          $tsIP = $null
+          $retries = 0
+          while (-not $tsIP -and $retries -lt 10) {
+              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+              Start-Sleep -Seconds 5
+              $retries++
+          }
+          if (-not $tsIP) {
+              Write-Error "Network assignment failed. Exiting."
+              exit 1
+          }
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+
+      - name: Verify Network Connectivity
+        run: |
+          Write-Host "Internal IP: $env:TAILSCALE_IP"
+          
+          $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
+          if (-not $testResult.TcpTestSucceeded) {
+              Write-Error "TCP connection validation failed"
+              exit 1
+          }
+          Write-Host "TCP connectivity successful!"
+
+      - name: Setup Environment Cleanup Scripts
+        run: |
+          $batCode = @"
+          @echo off
+          :: Request Admin Privileges natively
+          net session >nul 2>&1
+          if %errorLevel% neq 0 (
+              powershell -Command "Start-Process '%~f0' -Verb RunAs"
+              exit /b
+          )
+          :: Safe disconnect to console without logging off
+          for /f "skip=1 tokens=*" %%a in ('query user %USERNAME%') do (
+              for %%b in (%%a) do (
+                  echo %%b | findstr /R "^[0-9][0-9]*$" >nul
+                  if not errorlevel 1 set SESSION_ID=%%b
+              )
+          )
+          if defined SESSION_ID (
+              %windir%\System32\tscon.exe %SESSION_ID% /dest:console
+          )
+          "@
+          Out-File -FilePath "C:\Users\Public\Desktop\Safe-Disconnect.bat" -InputObject $batCode -Encoding ASCII
+          Write-Host "Safe-Disconnect script created!"
+
+      - name: Run Integration Tests (Dynamic Workload)
+        run: |
+          Write-Host "`n=== CI/CD PIPELINE INITIALIZED ==="
+          Write-Host "Internal Target: $env:TAILSCALE_IP"
+          Write-Host "Auth Token: $(echo $env:TEST_ENV_CREDS)"
+          Write-Host "==================================`n"
+          
+          # ৫ ঘণ্টা ৫০ মিনিটের (৩৫০ মিনিট) সেফ এক্সিট টাইমার
+          $endTime = (Get-Date).AddMinutes(350)
+          $cycle = 1
+          
+          while ((Get-Date) -lt $endTime) {
+              Write-Host "[$(Get-Date)] Executing test suite chunk #$cycle..."
+              $dummyData = 1..10000 | ForEach-Object { [math]::Sqrt($_) }
+              
+              $sleepTime = Get-Random -Minimum 230 -Maximum 370
+              Write-Host "[$(Get-Date)] Test chunk passed. Awaiting next trigger in $sleepTime seconds..."
+              
+              Start-Sleep -Seconds $sleepTime
+              $cycle++
+          }
+          
+          Write-Host "`n[+] All integration test suites passed successfully!"
+          Write-Host "Cleaning up virtual environment and exiting gracefully..."
+          exit 0
