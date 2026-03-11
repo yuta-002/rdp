@@ -18,7 +18,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
                            
-          # পাওয়ার, স্লিপ ও লক স্ক্রিন অপ্টিমাইজেশন
+          # পাওয়ার ও স্লিপ অপ্টিমাইজেশন
           powercfg -change -standby-timeout-ac 0
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -hibernate-timeout-ac 0
@@ -26,10 +26,10 @@ jobs:
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
           Set-ItemProperty -Path $regPath -Name "NoLockScreen" -Value 1 -Force
           
-          # Ultimate Performance Mode Enable
+          # Ultimate Performance Mode
           powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
           
-          # Virtual RAM (16GB PageFile) Fix
+          # Virtual RAM Fix
           Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
           $pagefile = Get-CimInstance Win32_PageFileSetting
           if ($pagefile) { $pagefile | Remove-CimInstance }
@@ -39,11 +39,10 @@ jobs:
               MaximumSize = [uint32]16384
           }
           
-          # Firewall Port Open
           netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: 👤 Create Admin & Dynamic Branding
+      - name: 👤 Create Admin & Branding Info
         run: |
           Add-Type -AssemblyName System.Security
           $password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 12 | ForEach-Object {[char]$_})
@@ -52,7 +51,6 @@ jobs:
           New-LocalUser -Name "TestAdmin" -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           
-          # System Information Gathering
           $os = (Get-WmiObject Win32_OperatingSystem).Caption
           $cpu = (Get-WmiObject Win32_Processor).Name
           $ram = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
@@ -62,17 +60,37 @@ jobs:
           echo "CPU_INFO=$cpu" >> $env:GITHUB_ENV
           echo "TOTAL_RAM=$ram" >> $env:GITHUB_ENV
 
-      - name: 🎮 Install Ultra Tools (Silent Setup)
+      - name: 🖼️ Set Intense 4K Anime Wallpaper & Desktop Branding
         run: |
-          # Chrome
-          Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "chrome.exe"
-          Start-Process "chrome.exe" -ArgumentList "/silent", "/install" -Wait
-          
-          # BlueStacks 5 Native
-          Invoke-WebRequest -Uri "https://ak-build.bluestacks.com/public/app-player/windows/nxt/5.21.210.1023/52e72404e330f8981df1066063e5229c/BlueStacksMicroInstaller_5.21.210.1023_native.exe" -OutFile "BSInstaller.exe"
-          Start-Process "BSInstaller.exe" -ArgumentList "--unattended", "--notab", "--forced" -Wait
+          # Dark/Intense Anime Wallpaper (Rimuru/Dark Vibe)
+          $wpUrl = "https://images6.alphacoders.com/985/985161.jpg"
+          $wpPath = "C:\Windows\branding-wp.jpg"
+          try {
+            Invoke-WebRequest -Uri $wpUrl -OutFile $wpPath -ErrorAction Stop
+            $code = @"
+            using System.Runtime.InteropServices;
+            public class Wallpaper {
+              [DllImport("user32.dll", CharSet = CharSet.Auto)]
+              public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+            }
+"@
+            Add-Type -TypeDefinition $code
+            [Wallpaper]::SystemParametersInfo(0x0014, 0, $wpPath, 0x01)
+          } catch { Write-Host "Wallpaper setup skipped" }
 
-      - name: 🔗 Tailscale Hybrid Connection
+          # Desktop Text Branding
+          $brandingText = @"
+          =========================================
+          OWNER: YUTA
+          TELEGRAM: @JOY_100K
+          =========================================
+          Welcome to Ultra Pro Build Environment
+          =========================================
+"@
+          $brandingText | Out-File "C:\Users\Public\Desktop\OWNER_INFO.txt"
+          $brandingText | Out-File "C:\Users\TestAdmin\Desktop\WELCOME.txt" -ErrorAction SilentlyContinue
+
+      - name: 🔗 Tailscale Connection
         run: |
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
@@ -83,9 +101,9 @@ jobs:
       - name: 📱 Telegram Smart Notification
         run: |
           $text = @"
-          💎 *ULTRA PRO RDP V2 IS LIVE*
+          💎 *ULTRA PRO RDP V2 BY YUTA*
           ━━━━━━━━━━━━━━━━━━━━━━
-          👤 *OWNER:* JOY_100K
+          👤 *OWNER:* YUTA (@JOY_100K)
           💻 *OS:* ${{ env.OS_INFO }}
           🧠 *CPU:* ${{ env.CPU_INFO }}
           🔋 *RAM:* ${{ env.TOTAL_RAM }}GB + 16GB V-RAM
@@ -95,14 +113,10 @@ jobs:
           User: `TestAdmin`
           Pass: `${{ env.RDP_PASS }}`
           
-          🛠️ *PRE-INSTALLED:*
-          ✅ Chrome & BlueStacks 5
-          ✅ High-Performance Mode
-          ✅ Auto-Keep Alive
-          
-          ⏱️ *SESSION:* 6 Hours (Auto-Restart Active)
+          🎨 *THEME:* 4K Dark Anime Style
+          ⏱️ *SESSION:* 6 Hours Auto-Restart
           ━━━━━━━━━━━━━━━━━━━━━━
-          🛑 [Terminate Session](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          🛑 [Terminate](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           "@
           $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $text; parse_mode = "Markdown" } | ConvertTo-Json
           Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $body -ContentType "application/json"
@@ -112,42 +126,22 @@ jobs:
           Add-Type -AssemblyName System.Windows.Forms
           $endTime = (Get-Date).AddMinutes(350)
           
-          # সেশন চলাকালীন সময় কন্টিনিউয়াস মনিটরিং
           while ((Get-Date) -lt $endTime) {
             $rem = [math]::Round(($endTime - (Get-Date)).TotalMinutes)
-            Write-Host "Running... Time Left: $rem min | Stability: High"
+            Write-Host "Running... Time Left: $rem min | Owner: YUTA"
             
-            # Anti-Idle Mouse Movement (Randomized)
             [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
-            
-            # Memory Cleanup (ব্লুস্ট্যাক্স যাতে হ্যাং না করে)
-            Clear-Host
             [System.GC]::Collect()
             
             Start-Sleep -Seconds 300
           }
           
-          # --- Advanced Auto Restart Logic ---
           $token = "${{ secrets.GH_PAT }}"
           if ($token) {
             $user = "${{ github.actor }}"
             $pair = "$($user):$($token)"
             $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
             
-            $retryCount = 0
-            $success = $false
-            do {
-              try {
-                curl -X POST -H "Authorization: Basic $encoded" -H "Accept: application/vnd.github.v3+json" `
-                "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
-                $success = $true
-                Write-Host "Restart signal sent successfully!"
-              } catch {
-                $retryCount++
-                Write-Host "Retry $retryCount..."
-                Start-Sleep -Seconds 10
-              }
-            } while (-not $success -and $retryCount -lt 3)
-          } else {
-            Write-Error "GH_PAT secret missing! Auto-restart disabled."
+            curl -X POST -H "Authorization: Basic $encoded" -H "Accept: application/vnd.github.v3+json" `
+            "https://api.github.com/repos/${{ github.repository }}/dispatches" -d "{\"event_type\": \"restart_rdp\"}"
           }
