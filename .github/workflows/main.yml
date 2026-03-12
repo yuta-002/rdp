@@ -1,72 +1,198 @@
-name: YUTA-PRO-V3
+name: Windows CI Build Environment - Ultra Pro Edition V2
 
 on:
   workflow_dispatch:
 
 jobs:
-  automation:
-    runs-on: ubuntu-latest
-    timeout-minutes: 3600
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 360 
 
     steps:
-      - name: 📥 Restore WorkData
-        uses: actions/cache@v4
-        with:
-          path: /home/yuta/WorkData
-          key: yuta-data-${{ github.run_id }}
-          restore-keys: yuta-data-
-
-      - name: 🛰️ System Setup
+      - name: 🚀 Initialize High-Performance & Audio optimization
         run: |
-          sudo hostnamectl set-hostname YUTA-PRO
-          sudo useradd -m -s /bin/bash yuta || true
-          sudo usermod -aG sudo yuta
+          # অডিও সার্ভিস এনাবল করা
+          Set-Service -Name "Audiosrv" -StartupType Automatic
+          Start-Service -Name "Audiosrv"
+          Set-Service -Name "AudioEndpointBuilder" -StartupType Automatic
+          Start-Service -Name "AudioEndpointBuilder"
           
-          # Generate Random Password
-          RAND_PASS=$(openssl rand -base64 9 | tr -d /=+ | cut -c1-8)
-          echo "PASS=$RAND_PASS" >> $GITHUB_ENV
-          echo "yuta:$RAND_PASS" | sudo chpasswd
-          echo "runner:$RAND_PASS" | sudo chpasswd
+          # RDP অডিও এবং গ্রাফিক্স সেটিংস কনফিগার
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableCam" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
           
-          # Install Desktop & Tools
-          sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies xrdp adb openjdk-17-jdk python3-pip chromium-browser
-          sudo adduser xrdp ssl-cert
-          echo "startxfce4" | sudo tee /home/yuta/.xsession
-          sudo chown yuta:yuta /home/yuta/.xsession
-          sudo systemctl restart xrdp
-          
-          # WorkData Folder Setup
-          sudo mkdir -p /home/yuta/WorkData
-          sudo chown -R yuta:yuta /home/yuta/WorkData
+          powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          netsh advfirewall firewall add rule name="RDP-Port" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
 
-      - name: 📱 Android Setup
+      - name: 👤 Create Admin & Branding Info
         run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk.zip
-          unzip -q sdk.zip -d $HOME/android-sdk/cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          $chars = (65..90) + (97..122) + (48..57) + (33, 35, 36, 37)
+          $password = -join ($chars | Get-Random -Count 14 | ForEach-Object {[char]$_})
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          # লগইন স্ক্রিনে আপনার নাম দেখানোর জন্য FullName আপডেট করা হয়েছে
+          New-LocalUser -Name "TestAdmin" -Password $securePass -FullName "Master YUTA 複" -Description "Managed by @JOY_100K" -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "TestAdmin"
           
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
+          # লগইন স্ক্রিনে কাস্টম আইকন/পিকচার সেট করার স্ক্রিপ্ট (Branding)
+          $iconUrl = "https://i.imgur.com/8fS0N7f.png" 
+          $iconPath = "C:\Users\Public\AccountIcon.png"
+          (New-Object System.Net.WebClient).DownloadFile($iconUrl, $iconPath)
           
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-30;google_apis;x86_64" "emulator"
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n "YUTA_V3" -k "system-images;android-30;google_apis;x86_64" --force
+          echo "RDP_PASS=$password" >> $env:GITHUB_ENV
+          echo "OS_INFO=$((Get-WmiObject Win32_OperatingSystem).Caption)" >> $env:GITHUB_ENV
+          echo "CPU_INFO=$((Get-WmiObject Win32_Processor).Name)" >> $env:GITHUB_ENV
+          $totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB)
+          echo "TOTAL_RAM=$totalRam" >> $env:GITHUB_ENV
 
-      - name: 🔗 Tailscale & Notify
+      - name: 🔊 Setup Voice & Popup Welcome (Jarvis Branding)
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=yuta-rdp
-          IP=$(tailscale ip -4)
+          # ভয়েস এবং পপআপ স্ক্রিপ্ট তৈরি
+          $jarvisScript = @"
+          Add-Type -AssemblyName System.Speech
+          Add-Type -AssemblyName System.Windows.Forms
           
-          # Send Telegram Message
-          MSG="<b>💎 YUTA PRO V3 LIVE</b>%0A👤 User: <code>yuta</code>%0A🔑 Pass: <code>${{ env.PASS }}</code>%0A🌐 IP: <code>$IP</code>"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=$MSG&parse_mode=HTML"
+          # ভয়েস মেসেজ
+          `$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          `$speak.Rate = 0
+          `$speak.Volume = 100
+          `$speak.Speak('Welcome back, Master YUTA! Your system is fully optimized and ready. I am Jarvis, your dedicated virtual assistant.')
+          
+          # পপআপ মেসেজ বক্স
+          [System.Windows.Forms.MessageBox]::Show("Welcome back, Master YUTA!`n`nSystem: Fully Optimized`nOwner: YUTA 複`nTelegram: @JOY_100K`n`nJarvis is now Online.", "🤖 Jarvis System - Ultra Pro V2", 0, 64)
+          "@
+          $jarvisScript | Out-File "C:\Users\Public\jarvis.ps1" -Encoding utf8
+          
+          # স্টার্টআপে শর্টকাট তৈরি (লগইন করলেই রান হবে)
+          $WshShell = New-Object -ComObject WScript.Shell
+          $Shortcut = $WshShell.CreateShortcut("C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\Jarvis.lnk")
+          $Shortcut.TargetPath = "powershell.exe"
+          $Shortcut.Arguments = "-ExecutionPolicy Bypass -File C:\Users\Public\jarvis.ps1"
+          $Shortcut.WindowStyle = 7
+          $Shortcut.Save()
 
-      - name: 🔄 Keep-Alive
+      - name: 🛡️ Set Owner Watermark & Legal Notice
         run: |
-          export ANDROID_HOME=$HOME/android-sdk
-          nohup $ANDROID_HOME/emulator/emulator -avd YUTA_V3 -no-audio -no-window -gpu swiftshader_indirect > /dev/null 2>&1 &
-          echo "🚀 RDP is Ready!"
-          timeout 355m bash -c 'while true; do echo "Active | Pass: ${{ env.PASS }}"; sleep 300; done'
+          $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+          Set-ItemProperty -Path $regPath -Name "legalnoticecaption" -Value "🚀 RDP OWNER: YUTA 複" -Force
+          Set-ItemProperty -Path $regPath -Name "legalnoticetext" -Value "This RDP is managed by YUTA 複.`nTelegram: @JOY_100K`n`nAuthorized access only! Welcome Master YUTA." -Force
+          # OEM Branding
+          $oemPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\OEMInformation"
+          if (!(Test-Path $oemPath)) { New-Item -Path $oemPath -Force }
+          Set-ItemProperty -Path $oemPath -Name "Manufacturer" -Value "YUTA 複 Premium Systems" -Force
+          Set-ItemProperty -Path $oemPath -Name "SupportURL" -Value "https://t.me/JOY_100K" -Force
+
+      - name: 🔗 Tailscale Connection
+        run: |
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "ts.msi"
+          Start-Process msiexec.exe -ArgumentList "/i", "ts.msi", "/quiet", "/norestart" -Wait
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=ultra-rdp-${{ github.run_id }}
+          $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+
+      - name: 📝 Generate Desktop Info File
+        run: |
+          $details = @"
+          =========================================
+          👑 OWNER: YUTA 複
+          📱 TELEGRAM: @JOY_100K
+          =========================================
+          🚀 ULTRA PRO RDP V2 - LOGIN DETAILS
+          =========================================
+          🌐 NETWORK INFO:
+          IP: $($env:TAILSCALE_IP)
+          User: TestAdmin
+          Pass: $($env:RDP_PASS)
+          
+          💻 SYSTEM SPECS:
+          OS: $($env:OS_INFO)
+          CPU: $($env:CPU_INFO)
+          RAM: $($env:TOTAL_RAM)GB
+          
+          ⏱️ SESSION: 6 Hours (Jarvis Protection Active)
+          =========================================
+          "@
+          $details | Out-File "C:\Users\Public\Desktop\MASTER_YUTA_SYSTEM_INFO.txt" -Encoding utf8
+
+      - name: 🖼️ Set Branded Anime Wallpaper
+        run: |
+          $wpUrl = "https://i.imgur.com/G4lU8jL.jpg" 
+          $wpPath = "C:\Users\Public\wallpaper.jpg"
+          $finalWpPath = "C:\Users\Public\branded_wallpaper.jpg"
+
+          $code = @"
+          using System.Runtime.InteropServices;
+          public class Wallpaper {
+              [DllImport("user32.dll", CharSet = CharSet.Auto)]
+              public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+          }
+          "@
+          Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+          
+          try {
+              $wc = New-Object System.Net.WebClient
+              $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+              $wc.DownloadFile($wpUrl, $wpPath)
+              Add-Type -AssemblyName System.Drawing
+              $img = [System.Drawing.Image]::FromFile($wpPath)
+              $graphics = [System.Drawing.Graphics]::FromImage($img)
+              $font = New-Object System.Drawing.Font("Arial", 50, [System.Drawing.FontStyle]::Bold)
+              $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+              $graphics.DrawString("OWNER: YUTA 複", $font, $brush, 60, ($img.Height - 180))
+              $graphics.DrawString("Telegram: @JOY_100K", $font, $brush, 60, ($img.Height - 100))
+              $img.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              $graphics.Dispose(); $img.Dispose()
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+          } catch {
+              Add-Type -AssemblyName System.Drawing
+              $bmp = New-Object System.Drawing.Bitmap(1920, 1080)
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.Clear([System.Drawing.Color]::Black)
+              $g.DrawString("MASTER: YUTA 複", [System.Drawing.Font]::new("Arial", 70), [System.Drawing.Brushes]::White, 500, 450)
+              $g.Dispose(); $bmp.Save($finalWpPath, [System.Drawing.Imaging.ImageFormat]::Jpeg); $bmp.Dispose()
+              [Wallpaper]::SystemParametersInfo(0x0014, 0, $finalWpPath, 0x01)
+          }
+
+      - name: 📱 Telegram Smart Notification (Jarvis Mode)
+        run: |
+          $htmlBody = "<b>🤖 Master YUTA, Jarvis is Online!</b>`n" +
+                      "<i>Your Ultra Pro RDP V2 has been deployed successfully.</i>`n" +
+                      "━━━━━━━━━━━━━━━━━━━━━━`n" +
+                      "👤 <b>OWNER:</b> YUTA (@JOY_100K)`n" +
+                      "💻 <b>OS:</b> ${{ env.OS_INFO }}`n" +
+                      "🧠 <b>CPU:</b> ${{ env.CPU_INFO }}`n" +
+                      "🔋 <b>RAM:</b> ${{ env.TOTAL_RAM }}GB + 16GB V-RAM`n`n" +
+                      "🌐 <b>NETWORK ACCESS:</b>`n" +
+                      "IP: <code>${{ env.TAILSCALE_IP }}</code>`n" +
+                      "User: <code>TestAdmin</code>`n" +
+                      "Pass: <code>${{ env.RDP_PASS }}</code>`n`n" +
+                      "🛡️ <b>STATUS:</b> All systems operational.`n" +
+                      "━━━━━━━━━━━━━━━━━━━━━━"
+          $payload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $htmlBody; parse_mode = "HTML" } | ConvertTo-Json
+          Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $payload -ContentType "application/json"
+
+      - name: 🔄 Smart Keep-Alive & Expiring Alert
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          $startTime = Get-Date
+          $totalMinutes = 350
+          $endTime = $startTime.AddMinutes($totalMinutes)
+          $alertTime = $endTime.AddMinutes(-30)
+          $alertSent = $false
+
+          while ((Get-Date) -lt $endTime) {
+              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Max 800), (Get-Random -Max 600))
+              
+              if ((Get-Date) -ge $alertTime -and $alertSent -eq $false) {
+                  $warningMsg = "<b>⚠️ Master YUTA, Session Expiring!</b>`n━━━━━━━━━━━━━━━━━━━━━━`nJarvis warning: Session will end in <b>30 minutes</b>. Please sync your data.`n━━━━━━━━━━━━━━━━━━━━━━"
+                  $alertPayload = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $warningMsg; parse_mode = "HTML" } | ConvertTo-Json
+                  Invoke-RestMethod -Uri "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -Method Post -Body $alertPayload -ContentType "application/json"
+                  $alertSent = $true
+              }
+              Write-Host "Jarvis Status: Active | Master: YUTA 複 | Time Left: $([math]::Round(($endTime - (Get-Date)).TotalMinutes)) min"
+              [System.GC]::Collect()
+              Start-Sleep -Seconds 300
+          }
